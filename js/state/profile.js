@@ -167,7 +167,33 @@ export function resetProfile() {
   return resetState;
 }
 
-export const resetOnboarding = resetProfile;
+/**
+ * Formats canonical height (cm) for display according to unit preference.
+ */
+export function formatHeight(heightCm, unit = 'cm') {
+  const h = parseFloat(heightCm);
+  if (!h || h <= 0) return '';
+  if (unit === 'ft') {
+    const totalInches = Math.round(h / 2.54);
+    const feet = Math.floor(totalInches / 12);
+    const inches = totalInches % 12;
+    return `${feet}' ${inches}"`;
+  }
+  return `${Math.round(h)} cm`;
+}
+
+/**
+ * Formats canonical weight (kg) for display according to unit preference.
+ */
+export function formatWeight(weightKg, unit = 'kg') {
+  const w = parseFloat(weightKg);
+  if (!w || w <= 0) return '';
+  if (unit === 'lb') {
+    const lb = Math.round(w * 2.20462);
+    return `${lb} lb`;
+  }
+  return `${Math.round(w)} kg`;
+}
 
 /**
  * Backwards-compatible profile accessor for views (Home, Profile, etc.).
@@ -189,12 +215,14 @@ export function getProfile() {
     workoutDuration: s.workoutDuration || '20–30 min',
     stats: {
       age: s.age !== null && s.age !== undefined && s.age !== '' ? s.age : '',
-      height: s.height ? `${s.height} ${s.heightUnit || 'cm'}` : '',
-      weight: s.weight ? `${s.weight} ${s.weightUnit || 'kg'}` : '',
+      height: s.height ? formatHeight(s.height, s.heightUnit || 'cm') : '',
+      weight: s.weight ? formatWeight(s.weight, s.weightUnit || 'kg') : '',
       bmi: bmi
     }
   };
 }
+
+export const resetOnboarding = resetProfile;
 
 export function updateProfile(partial) {
   return updateOnboardingState(partial);
