@@ -11,6 +11,8 @@ import { renderProgress } from './views/progress.js';
 import { renderProfile } from './views/profile.js';
 import { renderExerciseLibrary } from './views/exercise-library.js';
 import { renderWorkoutPlayer } from './views/workout-player.js';
+import { renderOnboarding } from './views/onboarding.js';
+import { hasCompletedOnboarding } from './state/profile.js';
 
 export class Router {
   constructor(appContainer) {
@@ -41,6 +43,12 @@ export class Router {
       });
     }
 
+    // First visit: if onboarding not completed, route directly to onboarding
+    if (!hasCompletedOnboarding() && !window.location.hash.startsWith('#onboarding')) {
+      window.location.hash = '#onboarding';
+      return;
+    }
+
     // Default route if empty
     if (!window.location.hash) {
       window.location.hash = '#home';
@@ -53,7 +61,20 @@ export class Router {
     const rawHash = window.location.hash.slice(1) || 'home';
     const [route, param] = rawHash.split('/');
 
+    // Enforce onboarding for first-time users
+    if (!hasCompletedOnboarding() && route !== 'onboarding') {
+      window.location.hash = '#onboarding';
+      return;
+    }
+
     window.scrollTo({ top: 0, behavior: 'instant' });
+
+    // Toggle onboarding shell mode (hides bottom nav & top bar)
+    if (route === 'onboarding') {
+      document.body.classList.add('is-onboarding');
+    } else {
+      document.body.classList.remove('is-onboarding');
+    }
 
     // Update active indicators
     this.updateActiveNav(route);
@@ -61,6 +82,9 @@ export class Router {
 
     // Route dispatching
     switch (route) {
+      case 'onboarding':
+        renderOnboarding(this.container, param === 'edit' ? 'edit' : 'new');
+        break;
       case 'home':
         renderHome(this.container);
         break;

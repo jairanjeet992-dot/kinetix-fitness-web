@@ -4,26 +4,48 @@
  */
 
 import { USER_PROFILE } from '../data/profile.js';
+import { getProfile } from '../state/profile.js';
 
 export function renderProfile(container) {
+  const profile = getProfile();
+  const userName = profile.name || USER_PROFILE.name;
+  const userInitials = userName.split(' ').map(n => n[0]).filter(Boolean).join('').toUpperCase() || 'A';
+  const age = profile.stats?.age || USER_PROFILE.stats.age;
+  const height = profile.stats?.height || USER_PROFILE.stats.height;
+  const weight = profile.stats?.weight || USER_PROFILE.stats.weight;
+  const bmi = profile.stats?.bmi || USER_PROFILE.stats.bmi;
+
+  const focusList = Array.isArray(profile.focusAreas) && profile.focusAreas.length > 0
+    ? profile.focusAreas
+    : ['Full Body'];
+  const equipmentList = Array.isArray(profile.equipment) && profile.equipment.length > 0
+    ? profile.equipment
+    : ['Dumbbells', 'Resistance Bands'];
+
   container.innerHTML = `
     <div class="view-enter">
       <!-- Profile Header Card -->
       <section class="card" style="margin-bottom: var(--space-6); background: linear-gradient(135deg, #FFFFFF 0%, #FAF9F7 100%);">
-        <div style="display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap;">
-          <div style="width: 72px; height: 72px; border-radius: var(--radius-pill); background-color: var(--color-primary-subtle); border: 3px solid var(--color-surface); box-shadow: var(--shadow-sm); display: flex; align-items: center; justify-content: center; font-size: 1.75rem; font-weight: 700; color: var(--color-primary);">
-            ${USER_PROFILE.name.split(' ').map(n => n[0]).join('')}
-          </div>
-          <div>
-            <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: 2px;">
-              <h1 class="text-h1" style="font-size: 1.5rem;">${USER_PROFILE.name}</h1>
-              <span class="badge badge-primary">PRO</span>
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-4);">
+          <div style="display: flex; align-items: center; gap: var(--space-4);">
+            <div style="width: 72px; height: 72px; border-radius: var(--radius-pill); background-color: var(--color-primary-subtle); border: 3px solid var(--color-surface); box-shadow: var(--shadow-sm); display: flex; align-items: center; justify-content: center; font-size: 1.75rem; font-weight: 700; color: var(--color-primary);">
+              ${userInitials}
             </div>
-            <div class="text-caption text-secondary">${USER_PROFILE.handle} &bull; ${USER_PROFILE.joinedDate}</div>
-            <div class="text-caption text-primary-color" style="font-weight: 600; margin-top: 4px;">
-              ${USER_PROFILE.membershipTier}
+            <div>
+              <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: 2px;">
+                <h1 class="text-h1" style="font-size: 1.5rem;">${userName}</h1>
+                <span class="badge badge-primary">PRO</span>
+              </div>
+              <div class="text-caption text-secondary">${USER_PROFILE.handle} &bull; ${USER_PROFILE.joinedDate}</div>
+              <div class="text-caption text-primary-color" style="font-weight: 600; margin-top: 4px;">
+                ${USER_PROFILE.membershipTier}
+              </div>
             </div>
           </div>
+          <button type="button" class="btn btn-outline btn-sm" id="btn-edit-profile" style="align-self: center;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            Edit Profile
+          </button>
         </div>
       </section>
 
@@ -37,25 +59,25 @@ export function renderProfile(container) {
         <div class="grid grid-cols-2 grid-tablet-4 gap-3">
           <div class="profile-stat-box">
             <span class="text-caption text-muted">AGE</span>
-            <div class="profile-stat-val" style="margin-top: 4px;">${USER_PROFILE.stats.age}</div>
+            <div class="profile-stat-val" style="margin-top: 4px;">${age}</div>
             <span class="text-caption text-secondary">Years</span>
           </div>
 
           <div class="profile-stat-box">
             <span class="text-caption text-muted">HEIGHT</span>
-            <div class="profile-stat-val" style="margin-top: 4px;">${USER_PROFILE.stats.height}</div>
+            <div class="profile-stat-val" style="margin-top: 4px;">${height}</div>
             <span class="text-caption text-secondary">Standing</span>
           </div>
 
           <div class="profile-stat-box">
             <span class="text-caption text-muted">WEIGHT</span>
-            <div class="profile-stat-val" style="margin-top: 4px;">${USER_PROFILE.stats.weight}</div>
+            <div class="profile-stat-val" style="margin-top: 4px;">${weight}</div>
             <span class="text-caption text-secondary">Target: 73 kg</span>
           </div>
 
           <div class="profile-stat-box">
             <span class="text-caption text-muted">BMI</span>
-            <div class="profile-stat-val" style="margin-top: 4px;">${USER_PROFILE.stats.bmi}</div>
+            <div class="profile-stat-val" style="margin-top: 4px;">${bmi}</div>
             <span class="text-caption text-success">Optimal</span>
           </div>
         </div>
@@ -73,7 +95,7 @@ export function renderProfile(container) {
               <div class="text-label">Primary Goal</div>
               <div class="text-caption text-secondary">Focus of weekly recommendations</div>
             </div>
-            <span class="badge badge-primary">${USER_PROFILE.fitness.primaryGoal}</span>
+            <span class="badge badge-primary">${profile.goal || 'Build Muscle'}</span>
           </div>
 
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border-subtle); padding-bottom: var(--space-2);">
@@ -81,7 +103,7 @@ export function renderProfile(container) {
               <div class="text-label">Conditioning Level</div>
               <div class="text-caption text-secondary">Determines interval pacing and load</div>
             </div>
-            <span class="badge badge-dark">${USER_PROFILE.fitness.fitnessLevel}</span>
+            <span class="badge badge-dark">${profile.fitnessLevel || 'Intermediate'}</span>
           </div>
 
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border-subtle); padding-bottom: var(--space-2);">
@@ -89,7 +111,25 @@ export function renderProfile(container) {
               <div class="text-label">Target Duration</div>
               <div class="text-caption text-secondary">Ideal daily workout window</div>
             </div>
-            <span class="badge">${USER_PROFILE.fitness.preferredDuration}</span>
+            <span class="badge">${profile.workoutDuration || '20–30 min'}</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border-subtle); padding-bottom: var(--space-2);">
+            <div>
+              <div class="text-label">Training Frequency</div>
+              <div class="text-caption text-secondary">Committed weekly workout schedule</div>
+            </div>
+            <span class="badge badge-subtle">${profile.trainingDays || '4 days'}</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--color-border-subtle); padding-bottom: var(--space-2);">
+            <div>
+              <div class="text-label">Focus Areas</div>
+              <div class="text-caption text-secondary" style="margin-bottom: var(--space-2);">Selected target muscle groups</div>
+              <div style="display: flex; gap: var(--space-1); flex-wrap: wrap;">
+                ${focusList.map(f => `<span class="badge badge-primary">${f}</span>`).join('')}
+              </div>
+            </div>
           </div>
 
           <div style="display: flex; justify-content: space-between; align-items: flex-start;">
@@ -97,7 +137,7 @@ export function renderProfile(container) {
               <div class="text-label">Equipped Home Gym</div>
               <div class="text-caption text-secondary" style="margin-bottom: var(--space-2);">Filtered in workout discovery</div>
               <div style="display: flex; gap: var(--space-1); flex-wrap: wrap;">
-                ${USER_PROFILE.fitness.availableEquipment.map(eq => `<span class="badge">${eq}</span>`).join('')}
+                ${equipmentList.map(eq => `<span class="badge">${eq}</span>`).join('')}
               </div>
             </div>
           </div>
@@ -217,15 +257,17 @@ export function renderProfile(container) {
     });
   }
 
+  const editProfileBtn = container.querySelector('#btn-edit-profile');
+  if (editProfileBtn) {
+    editProfileBtn.addEventListener('click', () => {
+      window.location.hash = '#onboarding/edit';
+    });
+  }
+
   const editBioBtn = container.querySelector('#btn-edit-bio');
   if (editBioBtn) {
     editBioBtn.addEventListener('click', () => {
-      if (window.showToast) {
-        window.showToast({
-          type: 'info',
-          message: 'Physical stats editing will connect to local storage in Phase 2.'
-        });
-      }
+      window.location.hash = '#onboarding/edit';
     });
   }
 

@@ -5,13 +5,33 @@
 
 import { WORKOUTS, getFeaturedWorkout, getRecommendedWorkouts } from '../data/workouts.js';
 import { WEEKLY_PLAN } from '../data/plans.js';
-import { USER_PROFILE } from '../data/profile.js';
+import { getProfile } from '../state/profile.js';
 
 export function renderHome(container) {
+  const profile = getProfile();
   const featured = getFeaturedWorkout();
   const recommended = getRecommendedWorkouts().slice(0, 3);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+
+  const userName = profile.name || 'Athlete';
+  const userInitials = userName.split(' ').map(n => n[0]).filter(Boolean).join('').toUpperCase() || 'A';
+
+  // Personalized preview titles
+  const planTitles = {
+    'Build Muscle': 'Your muscle-building plan',
+    'Lose Fat': 'Your fat-loss plan',
+    'Get Stronger': 'Your strength-building plan',
+    'Improve Endurance': 'Your endurance plan',
+    'Improve Fitness': 'Your conditioning plan',
+    'Stay Active': 'Your active lifestyle plan'
+  };
+  const planTitle = planTitles[profile.goal] || `${profile.goal} plan`;
+
+  const focusText = Array.isArray(profile.focusAreas) && profile.focusAreas.length > 0
+    ? (profile.focusAreas.includes('Full Body') ? 'Full Body' : `${profile.focusAreas.join(' & ')} focused`)
+    : 'Full Body';
+  const durationText = profile.workoutDuration ? `${profile.workoutDuration} workouts` : '20–30 min workouts';
 
   container.innerHTML = `
     <div class="view-enter">
@@ -19,7 +39,7 @@ export function renderHome(container) {
       <div class="home-greeting-bar">
         <div>
           <div class="text-caption text-muted">${greeting},</div>
-          <h1 class="text-h1" style="margin-top: 2px;">${USER_PROFILE.name}</h1>
+          <h1 class="text-h1" style="margin-top: 2px;">${userName}</h1>
         </div>
         <div style="display: flex; align-items: center; gap: var(--space-2);">
           <div class="badge badge-primary" style="padding: 6px 12px; font-weight: 600;">
@@ -27,29 +47,29 @@ export function renderHome(container) {
             ${WEEKLY_PLAN.currentStreakDays} Day Streak
           </div>
           <a href="#profile" class="home-user-avatar" aria-label="Go to Profile">
-            ${USER_PROFILE.name.split(' ').map(n => n[0]).join('')}
+            ${userInitials}
           </a>
         </div>
       </div>
 
       <!-- Primary Action: Today's Workout Hero Card -->
       <section class="today-hero-card" aria-labelledby="today-workout-title">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-3);">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-3); flex-wrap: wrap; gap: var(--space-2);">
           <span class="badge badge-primary">TODAY'S SESSION</span>
-          <span class="badge">${featured.category}</span>
+          <span class="badge" style="background: rgba(255,255,255,0.08);">${planTitle}</span>
         </div>
 
         <h2 id="today-workout-title" class="text-h1" style="margin-bottom: var(--space-2); color: var(--color-text-primary);">
           ${featured.title}
         </h2>
         <p class="text-body" style="margin-bottom: var(--space-4); max-width: 540px;">
-          ${featured.description}
+          ${focusText} sessions calibrated for ${profile.fitnessLevel.toLowerCase()} intensity &bull; ${durationText}.
         </p>
 
         <div style="display: flex; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-5); color: var(--color-text-secondary); font-size: var(--font-size-body-sm);">
           <span class="workout-meta-item">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="16" height="16"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            <strong>${featured.durationMin} Min</strong>
+            <strong>${profile.workoutDuration || `${featured.durationMin} Min`}</strong>
           </span>
           <span class="workout-meta-item">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="16" height="16"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -57,7 +77,7 @@ export function renderHome(container) {
           </span>
           <span class="workout-meta-item">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="16" height="16"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
-            ${featured.difficulty}
+            ${profile.fitnessLevel}
           </span>
           <span class="workout-meta-item">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="16" height="16"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
@@ -81,7 +101,7 @@ export function renderHome(container) {
         <div class="section-header">
           <div>
             <h2 class="section-title">Weekly Momentum</h2>
-            <p class="section-subtitle">Week ${WEEKLY_PLAN.weekNumber} of ${WEEKLY_PLAN.totalWeeks} &bull; ${WEEKLY_PLAN.goal}</p>
+            <p class="section-subtitle">Week ${WEEKLY_PLAN.weekNumber} of ${WEEKLY_PLAN.totalWeeks} &bull; ${planTitle}</p>
           </div>
           <a href="#plans" class="text-caption text-primary-color" style="font-weight: 600;">View Calendar &rarr;</a>
         </div>
@@ -140,7 +160,7 @@ export function renderHome(container) {
         <div class="section-header">
           <div>
             <h2 class="section-title">Recommended For You</h2>
-            <p class="section-subtitle">Based on your equipment and conditioning level</p>
+            <p class="section-subtitle">Based on your ${profile.fitnessLevel.toLowerCase()} level &bull; ${durationText}</p>
           </div>
           <a href="#workouts" class="text-caption text-primary-color" style="font-weight: 600;">See All (${WORKOUTS.length}) &rarr;</a>
         </div>

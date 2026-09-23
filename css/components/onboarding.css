@@ -1,0 +1,494 @@
+/**
+ * ONBOARDING STYLES - KINETIX
+ * Phase 2: Personalized Fitness Onboarding
+ *
+ * Dedicated mobile-first onboarding layout, selectable cards,
+ * progress bar, and touch-first form controls.
+ */
+
+/* Hide standard app navigation during onboarding */
+body.is-onboarding .bottom-nav,
+body.is-onboarding .desktop-sidebar,
+body.is-onboarding .top-bar {
+  display: none !important;
+}
+
+body.is-onboarding .app-shell {
+  padding-bottom: 0 !important;
+}
+
+body.is-onboarding .app-view-container {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  max-width: 100% !important;
+}
+
+/* ==========================================================================
+   Onboarding Layout Shell
+   ========================================================================== */
+.onboarding-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-background);
+  position: relative;
+  width: 100%;
+}
+
+.onboarding-container {
+  width: 100%;
+  max-width: 580px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: var(--space-4) var(--space-4) calc(var(--space-10) + var(--safe-area-bottom));
+}
+
+/* ==========================================================================
+   Onboarding Header & Progress Bar
+   ========================================================================== */
+.onboarding-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: calc(var(--space-3) + var(--safe-area-top));
+  padding-bottom: var(--space-4);
+  gap: var(--space-3);
+}
+
+.onboarding-header-action {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  color: var(--color-text-primary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.onboarding-header-action:hover {
+  background-color: var(--color-surface-secondary);
+}
+
+.onboarding-progress-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.onboarding-step-label {
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.onboarding-progress-track {
+  width: 100%;
+  max-width: 200px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-secondary);
+  overflow: hidden;
+}
+
+.onboarding-progress-fill {
+  height: 100%;
+  background-color: var(--color-primary);
+  border-radius: var(--radius-pill);
+  transition: width var(--transition-normal);
+}
+
+.onboarding-skip-link {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+  transition: color var(--transition-fast);
+}
+
+.onboarding-skip-link:hover {
+  color: var(--color-text-primary);
+}
+
+/* ==========================================================================
+   Content Area & Typography
+   ========================================================================== */
+.onboarding-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  animation: onboardingFadeSlide var(--transition-normal);
+}
+
+@keyframes onboardingFadeSlide {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.onboarding-title-area {
+  margin-bottom: var(--space-6);
+}
+
+.onboarding-question {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-2);
+  line-height: var(--line-height-tight);
+}
+
+.onboarding-hint {
+  font-size: var(--font-size-body);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-normal);
+}
+
+/* ==========================================================================
+   Welcome Screen Hero
+   ========================================================================== */
+.onboarding-welcome-hero {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: var(--space-6) 0;
+}
+
+.onboarding-brand-mark {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-xl);
+  background: linear-gradient(135deg, var(--color-primary) 0%, #FF7043 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  font-size: 2.25rem;
+  font-weight: 800;
+  box-shadow: 0 12px 32px rgba(255, 84, 46, 0.28);
+  margin-bottom: var(--space-6);
+}
+
+.onboarding-welcome-title {
+  font-size: var(--font-size-display);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-3);
+  line-height: 1.15;
+}
+
+.onboarding-welcome-tagline {
+  font-size: var(--font-size-body-lg);
+  color: var(--color-text-secondary);
+  max-width: 420px;
+  margin-bottom: var(--space-8);
+  line-height: 1.5;
+}
+
+.onboarding-feature-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: center;
+  margin-bottom: var(--space-8);
+}
+
+/* ==========================================================================
+   Selectable Option Cards
+   ========================================================================== */
+.onboarding-cards-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+
+.onboarding-option-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  background-color: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: left;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.onboarding-option-card:hover {
+  border-color: var(--color-border-strong);
+  background-color: var(--color-surface);
+}
+
+.onboarding-option-card.is-selected {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-subtle);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.onboarding-option-card:focus-visible,
+.onboarding-grid-item:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.onboarding-option-info {
+  flex: 1;
+  min-width: 0;
+  padding-right: var(--space-3);
+}
+
+.onboarding-option-title {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.onboarding-option-desc {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+  line-height: 1.35;
+}
+
+.onboarding-radio-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--color-border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+  background-color: var(--color-surface);
+}
+
+.onboarding-option-card.is-selected .onboarding-radio-dot {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary);
+}
+
+.onboarding-radio-dot::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background-color: #FFFFFF;
+  opacity: 0;
+  transform: scale(0.4);
+  transition: all var(--transition-fast);
+}
+
+.onboarding-option-card.is-selected .onboarding-radio-dot::after {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Multi-select checkmark variant */
+.onboarding-check-box {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--color-border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+  background-color: var(--color-surface);
+}
+
+.onboarding-option-card.is-selected .onboarding-check-box {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary);
+}
+
+.onboarding-check-box svg {
+  width: 14px;
+  height: 14px;
+  stroke: #FFFFFF;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.onboarding-option-card.is-selected .onboarding-check-box svg {
+  opacity: 1;
+}
+
+/* ==========================================================================
+   Multi-Selection Grid (Focus Areas, Equipment)
+   ========================================================================== */
+.onboarding-grid-chips {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+
+.onboarding-grid-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+  background-color: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.onboarding-grid-item:hover {
+  border-color: var(--color-border-strong);
+}
+
+.onboarding-grid-item.is-selected {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-subtle);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.onboarding-grid-item.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.onboarding-grid-label {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+/* ==========================================================================
+   Form Input Fields (Optional Profile Step)
+   ========================================================================== */
+.onboarding-form-group {
+  margin-bottom: var(--space-4);
+}
+
+.onboarding-form-label {
+  display: block;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.onboarding-input {
+  width: 100%;
+  height: 48px;
+  padding: 0 var(--space-4);
+  background-color: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-body);
+  color: var(--color-text-primary);
+  outline: none;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.onboarding-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: var(--focus-ring);
+}
+
+/* ==========================================================================
+   Completion Screen
+   ========================================================================== */
+.onboarding-summary-card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: var(--space-6);
+}
+
+.onboarding-summary-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.onboarding-summary-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.onboarding-summary-key {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
+.onboarding-summary-val {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  text-align: right;
+  max-width: 60%;
+}
+
+/* ==========================================================================
+   Sticky Bottom Action Area
+   ========================================================================== */
+.onboarding-footer {
+  margin-top: auto;
+  padding-top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.onboarding-footer .btn {
+  width: 100%;
+  justify-content: center;
+}
+
+@media (min-width: 640px) {
+  .onboarding-footer-row {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+/* Accessibility: respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-content {
+    animation: none;
+  }
+  .onboarding-progress-fill {
+    transition: none;
+  }
+}
