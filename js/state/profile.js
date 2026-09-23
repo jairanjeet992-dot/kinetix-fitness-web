@@ -1,83 +1,129 @@
 /**
- * PROFILE STATE MANAGEMENT - KINETIX
- * Phase 2: Personalized Fitness Onboarding
+ * ONBOARDING & PROFILE STATE MANAGEMENT - KINETIX
+ * Phase 1.2: Onboarding UX + Data Flow
  *
- * Centralized local profile state manager backed by localStorage.
- * Provides safe reads, updates, event notifications, and corruption recovery.
+ * Centralized onboarding state manager backed by localStorage.
+ * Implements strict zero-fake-defaults, step persistence, safe recovery,
+ * and seamless event emission for views.
  */
 
-const STORAGE_KEY = 'kinetix_profile_v1';
+export const STORAGE_KEY = 'kinetix_onboarding';
+export const LEGACY_STORAGE_KEY = 'kinetix_profile_v1';
 
-export const DEFAULT_PROFILE = {
-  name: "Athlete",
-  goal: "Build Muscle",
-  fitnessLevel: "Intermediate",
-  focusAreas: ["Full Body"],
-  equipment: ["Dumbbells", "Resistance Bands"],
-  trainingDays: "4 days",
-  workoutDuration: "20–30 min",
-  stats: {
-    age: 28,
-    height: "178 cm",
-    weight: "74 kg",
-    bmi: "23.4"
-  },
+export const INITIAL_ONBOARDING_STATE = {
+  name: "",
+  age: null,
+  height: null,
+  heightUnit: "cm",
+  weight: null,
+  weightUnit: "kg",
+  goal: null,
+  fitnessLevel: null,
+  targetMuscles: [],
+  equipment: [],
+  trainingDays: null,
+  workoutDuration: null,
+  currentStep: 0,
   onboardingCompleted: false,
-  updatedAt: new Date().toISOString()
+  updatedAt: null
 };
 
 /**
- * Safely retrieves profile from localStorage.
- * Recovers with default profile if missing or corrupted.
+ * Safely parses JSON from localStorage with graceful fallback.
  */
-export function getProfile() {
+function safeGetStorage(key) {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return { ...DEFAULT_PROFILE };
-    }
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') {
-      console.warn('Invalid profile structure in localStorage. Resetting to default.');
-      return { ...DEFAULT_PROFILE };
-    }
-    return {
-      ...DEFAULT_PROFILE,
-      ...parsed,
-      stats: {
-        ...DEFAULT_PROFILE.stats,
-        ...(parsed.stats || {})
-      }
-    };
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed;
   } catch (err) {
-    console.warn('Failed to parse profile from localStorage. Using default profile.', err);
-    return { ...DEFAULT_PROFILE };
+    console.warn(`Failed to parse ${key} from localStorage. Recovering safely.`, err);
+    return null;
   }
 }
 
 /**
- * Updates profile with partial fields and persists to localStorage.
+ * Safely writes JSON to localStorage.
  */
-export function updateProfile(partial = {}) {
-  const current = getProfile();
+function safeSetStorage(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (err) {
+    console.error(`Failed to write ${key} to localStorage:`, err);
+  }
+}
+
+/**
+ * Calculates BMI from height (cm) and weight (kg).
+ */
+export function calculateBmi(heightCm, weightKg) {
+  const h = parseFloat(heightCm);
+  const w = parseFloat(weightKg);
+  if (!h || !w || h <= 0 || w <= 0) return '';
+  const meters = h / 100;
+  const val = w / (meters * meters);
+  return isFinite(val) ? val.toFixed(1) : '';
+}
+
+/**
+ * Retrieves the complete centralized onboarding state.
+ */
+export function getOnboardingState() {
+  let stored = null;
+  const rawPrimary = localStorage.getItem(STORAGE_KEY);
+  if (rawPrimary !== null) {
+    stored = safeGetStorage(STORAGE_KEY);
+  } else {
+    const rawLegacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (rawLegacy !== null) {
+      stored = safeGetStorage(LEGACY_STORAGE_KEY);
+    }
+  }
+
+  if (!stored) {
+    return { ...INITIAL_ONBOARDING_STATE };
+  }
+
+  // Handle migration from legacy focusAreas to targetMuscles
+  const targetMuscles = Array.isArray(stored.targetMuscles)
+    ? stored.targetMuscles
+    : Array.isArray(stored.focusAreas)
+    ? stored.focusAreas
+    : [];
+
+  return {
+    ...INITIAL_ONBOARDING_STATE,
+    ...stored,
+    targetMuscles,
+    equipment: Array.isArray(stored.equipment) ? stored.equipment : []
+  };
+}
+
+/**
+ * Updates the onboarding state with partial fields and persists.
+ */
+export function updateOnboardingState(partial = {}) {
+  const current = getOnboardingState();
   const updated = {
     ...current,
     ...partial,
-    stats: {
-      ...current.stats,
-      ...(partial.stats || {})
-    },
     updatedAt: new Date().toISOString()
   };
 
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-  } catch (err) {
-    console.error('Failed to write profile to localStorage', err);
+  // Ensure targetMuscles and focusAreas stay synced
+  if (Array.isArray(updated.targetMuscles)) {
+    updated.focusAreas = [...updated.targetMuscles];
+  } else if (Array.isArray(updated.focusAreas)) {
+    updated.targetMuscles = [...updated.focusAreas];
   }
 
-  // Dispatch global event for reactive UI updates
+  safeSetStorage(STORAGE_KEY, updated);
+  safeSetStorage(LEGACY_STORAGE_KEY, updated);
+
   if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('kinetix:onboarding-updated', { detail: updated }));
     window.dispatchEvent(new CustomEvent('kinetix:profile-updated', { detail: updated }));
   }
 
@@ -85,11 +131,11 @@ export function updateProfile(partial = {}) {
 }
 
 /**
- * Marks onboarding as complete and saves.
+ * Marks onboarding as complete and persists profile.
  */
-export function completeOnboarding(profileData = {}) {
-  return updateProfile({
-    ...profileData,
+export function completeOnboarding(finalData = {}) {
+  return updateOnboardingState({
+    ...finalData,
     onboardingCompleted: true
   });
 }
@@ -98,29 +144,66 @@ export function completeOnboarding(profileData = {}) {
  * Checks whether user has completed onboarding.
  */
 export function hasCompletedOnboarding() {
-  return Boolean(getProfile().onboardingCompleted);
+  return Boolean(getOnboardingState().onboardingCompleted);
 }
 
 /**
- * Resets profile to pristine uncompleted state.
- * Useful for development and manual testing.
+ * Resets profile and onboarding state back to pristine.
  */
 export function resetProfile() {
   try {
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
   } catch (err) {
-    console.error('Failed to clear profile from localStorage', err);
+    console.error('Failed to clear storage:', err);
   }
 
+  const resetState = { ...INITIAL_ONBOARDING_STATE };
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('kinetix:profile-updated', { detail: { ...DEFAULT_PROFILE } }));
+    window.dispatchEvent(new CustomEvent('kinetix:onboarding-updated', { detail: resetState }));
+    window.dispatchEvent(new CustomEvent('kinetix:profile-updated', { detail: resetState }));
   }
 
-  return { ...DEFAULT_PROFILE };
+  return resetState;
 }
 
-// Expose development reset helper on window
+export const resetOnboarding = resetProfile;
+
+/**
+ * Backwards-compatible profile accessor for views (Home, Profile, etc.).
+ */
+export function getProfile() {
+  const s = getOnboardingState();
+  const hNum = s.height ? parseFloat(s.height) : null;
+  const wNum = s.weight ? parseFloat(s.weight) : null;
+  const bmi = (hNum && wNum) ? calculateBmi(hNum, wNum) : '';
+
+  return {
+    ...s,
+    name: s.name ? s.name.trim() : '',
+    goal: s.goal || 'Build Muscle',
+    fitnessLevel: s.fitnessLevel || 'Beginner',
+    focusAreas: s.targetMuscles || [],
+    equipment: s.equipment || [],
+    trainingDays: s.trainingDays || '4 days',
+    workoutDuration: s.workoutDuration || '20–30 min',
+    stats: {
+      age: s.age !== null && s.age !== undefined && s.age !== '' ? s.age : '',
+      height: s.height ? `${s.height} ${s.heightUnit || 'cm'}` : '',
+      weight: s.weight ? `${s.weight} ${s.weightUnit || 'kg'}` : '',
+      bmi: bmi
+    }
+  };
+}
+
+export function updateProfile(partial) {
+  return updateOnboardingState(partial);
+}
+
+// Global debug helpers
 if (typeof window !== 'undefined') {
   window.resetProfile = resetProfile;
+  window.resetOnboarding = resetOnboarding;
   window.getProfile = getProfile;
+  window.getOnboardingState = getOnboardingState;
 }

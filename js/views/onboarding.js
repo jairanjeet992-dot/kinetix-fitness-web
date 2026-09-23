@@ -1,38 +1,57 @@
 /**
  * ONBOARDING VIEW - KINETIX
- * Phase 2: Personalized Fitness Onboarding
+ * Phase 1.2: Onboarding UX + Data Flow
  *
  * 8-Step mobile-first onboarding journey collecting core fitness preferences,
  * with state persistence, validation, skip options, and edit-mode support.
  */
 
-import { getProfile, completeOnboarding } from '../state/profile.js';
+import {
+  getOnboardingState,
+  updateOnboardingState,
+  completeOnboarding
+} from '../state/profile.js';
 
 export function renderOnboarding(container, mode = 'new') {
   const isEditMode = mode === 'edit';
-  const existingProfile = getProfile();
+  const storedState = getOnboardingState();
 
-  // Wizard state initialized from existing profile
+  // Wizard state initialized strictly from stored onboarding state without fake defaults
   const wizardState = {
-    name: existingProfile.name || 'Athlete',
-    goal: existingProfile.goal || 'Build Muscle',
-    fitnessLevel: existingProfile.fitnessLevel || 'Intermediate',
-    focusAreas: Array.isArray(existingProfile.focusAreas) && existingProfile.focusAreas.length > 0
-      ? [...existingProfile.focusAreas]
-      : ['Full Body'],
-    equipment: Array.isArray(existingProfile.equipment) && existingProfile.equipment.length > 0
-      ? [...existingProfile.equipment]
-      : ['Dumbbells', 'Resistance Bands'],
-    trainingDays: existingProfile.trainingDays || '4 days',
-    workoutDuration: existingProfile.workoutDuration || '20–30 min',
-    age: existingProfile.stats?.age || '',
-    height: existingProfile.stats?.height || '',
-    weight: existingProfile.stats?.weight || ''
+    name: storedState.name || '',
+    age: storedState.age ?? null,
+    height: storedState.height ?? null,
+    heightUnit: storedState.heightUnit || 'cm',
+    weight: storedState.weight ?? null,
+    weightUnit: storedState.weightUnit || 'kg',
+    goal: storedState.goal || null,
+    fitnessLevel: storedState.fitnessLevel || null,
+    targetMuscles: Array.isArray(storedState.targetMuscles)
+      ? [...storedState.targetMuscles]
+      : Array.isArray(storedState.focusAreas)
+      ? [...storedState.focusAreas]
+      : [],
+    equipment: Array.isArray(storedState.equipment) ? [...storedState.equipment] : [],
+    trainingDays: storedState.trainingDays || null,
+    workoutDuration: storedState.workoutDuration || null
   };
 
   // Step 0: Welcome, 1: Goal, 2: Level, 3: Focus, 4: Equipment, 5: Frequency, 6: Duration, 7: Profile Info, 8: Completion
-  let currentStep = isEditMode ? 1 : 0;
   const TOTAL_QUESTION_STEPS = 7;
+  let currentStep = isEditMode
+    ? 1
+    : (storedState.currentStep && storedState.currentStep >= 1 && storedState.currentStep <= 8)
+    ? storedState.currentStep
+    : 0;
+
+  let validationErrorMessage = '';
+
+  function saveCurrentState() {
+    updateOnboardingState({
+      ...wizardState,
+      currentStep: currentStep
+    });
+  }
 
   function renderCurrentStep() {
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -75,7 +94,7 @@ export function renderOnboarding(container, mode = 'new') {
     container.innerHTML = `
       <div class="onboarding-screen view-enter">
         <div class="onboarding-container">
-          ${currentStep > 0 && currentStep <= TOTAL_QUESTION_STEPS ? renderHeader() : ''}
+          ${currentStep > 0 ? renderHeader() : ''}
           <div class="onboarding-content">
             ${stepHtml}
           </div>
@@ -87,10 +106,17 @@ export function renderOnboarding(container, mode = 'new') {
   }
 
   /* --------------------------------------------------------------------------
-     Header with Step Counter and Progress Bar
+     Reusable Header Component with Step Counter, Progress Bar & Reusable Back Button
      -------------------------------------------------------------------------- */
   function renderHeader() {
-    const pct = Math.round((currentStep / TOTAL_QUESTION_STEPS) * 100);
+    const isQuestionStep = currentStep >= 1 && currentStep <= TOTAL_QUESTION_STEPS;
+    const pct = isQuestionStep
+      ? Math.round((currentStep / TOTAL_QUESTION_STEPS) * 100)
+      : 100;
+
+    // Skip is only permitted on optional details (Step 7), never on required questions
+    const showSkip = currentStep === 7;
+
     return `
       <header class="onboarding-header">
         <button type="button" class="onboarding-header-action" id="btn-onboarding-back" aria-label="Go to previous step">
@@ -98,16 +124,29 @@ export function renderOnboarding(container, mode = 'new') {
         </button>
 
         <div class="onboarding-progress-wrap">
-          <span class="onboarding-step-label">${currentStep} of ${TOTAL_QUESTION_STEPS}</span>
+          <span class="onboarding-step-label">${isQuestionStep ? `${currentStep} of ${TOTAL_QUESTION_STEPS}` : 'Summary'}</span>
           <div class="onboarding-progress-track" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">
             <div class="onboarding-progress-fill" style="width: ${pct}%;"></div>
           </div>
         </div>
 
-        <button type="button" class="onboarding-skip-link" id="btn-onboarding-skip-step">
+        <button type="button" class="onboarding-skip-link ${showSkip ? '' : 'is-hidden'}" id="btn-onboarding-skip-step" ${showSkip ? '' : 'tabindex="-1" aria-hidden="true"'}>
           Skip
         </button>
       </header>
+    `;
+  }
+
+  /* --------------------------------------------------------------------------
+     Inline Validation Message Helper
+     -------------------------------------------------------------------------- */
+  function renderValidationBox() {
+    if (!validationErrorMessage) return '';
+    return `
+      <div class="onboarding-validation-msg" role="alert">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span>${validationErrorMessage}</span>
+      </div>
     `;
   }
 
@@ -136,16 +175,13 @@ export function renderOnboarding(container, mode = 'new') {
           <button type="button" class="btn btn-primary btn-lg" id="btn-welcome-start">
             Get Started
           </button>
-          <button type="button" class="btn btn-ghost btn-sm" id="btn-welcome-skip" style="color: var(--color-text-muted);">
-            Skip for now
-          </button>
         </div>
       </div>
     `;
   }
 
   /* --------------------------------------------------------------------------
-     Step 1: Goal Screen (Single Choice)
+     Step 1: Goal Screen (Single Choice, Required)
      -------------------------------------------------------------------------- */
   function renderGoal() {
     const goals = [
@@ -178,8 +214,10 @@ export function renderOnboarding(container, mode = 'new') {
         }).join('')}
       </div>
 
+      ${renderValidationBox()}
+
       <div class="onboarding-footer">
-        <button type="button" class="btn btn-primary btn-lg" id="btn-step-continue" ${!wizardState.goal ? 'disabled' : ''}>
+        <button type="button" class="btn btn-primary btn-lg" id="btn-step-continue">
           Continue
         </button>
       </div>
@@ -187,7 +225,7 @@ export function renderOnboarding(container, mode = 'new') {
   }
 
   /* --------------------------------------------------------------------------
-     Step 2: Fitness Level Screen (Single Choice)
+     Step 2: Fitness Level Screen (Single Choice, Required, No Preselection)
      -------------------------------------------------------------------------- */
   function renderLevel() {
     const levels = [
@@ -217,8 +255,10 @@ export function renderOnboarding(container, mode = 'new') {
         }).join('')}
       </div>
 
+      ${renderValidationBox()}
+
       <div class="onboarding-footer">
-        <button type="button" class="btn btn-primary btn-lg" id="btn-step-continue" ${!wizardState.fitnessLevel ? 'disabled' : ''}>
+        <button type="button" class="btn btn-primary btn-lg" id="btn-step-continue">
           Continue
         </button>
       </div>
@@ -226,12 +266,13 @@ export function renderOnboarding(container, mode = 'new') {
   }
 
   /* --------------------------------------------------------------------------
-     Step 3: Focus Areas Screen (Multiple Selection, max 3)
+     Step 3: Target Muscles / Focus Areas (Multi-select, max 3, Full Body mutual exclusion)
      -------------------------------------------------------------------------- */
   function renderFocus() {
     const areas = ['Full Body', 'Chest', 'Back', 'Shoulders', 'Arms', 'Legs', 'Core', 'Cardio', 'Mobility'];
-    const count = wizardState.focusAreas.length;
-    const isFullBodyActive = wizardState.focusAreas.includes('Full Body');
+    const count = wizardState.targetMuscles.length;
+    const isFullBodyActive = wizardState.targetMuscles.includes('Full Body');
+    const hasSpecificMuscles = count > 0 && !isFullBodyActive;
 
     return `
       <div class="onboarding-title-area">
@@ -241,10 +282,24 @@ export function renderOnboarding(container, mode = 'new') {
 
       <div class="onboarding-grid-chips">
         ${areas.map(area => {
-          const isSelected = wizardState.focusAreas.includes(area);
-          const isDisabled = !isSelected && count >= 3;
+          const isSelected = wizardState.targetMuscles.includes(area);
+          let isDisabled = false;
+
+          if (area === 'Full Body') {
+            // Full Body is disabled if any specific muscle is selected
+            isDisabled = hasSpecificMuscles;
+          } else {
+            // Specific muscles are disabled if Full Body is selected, or if 3 other items are already selected
+            isDisabled = isFullBodyActive || (!isSelected && count >= 3);
+          }
+
           return `
-            <div class="onboarding-grid-item ${isSelected ? 'is-selected' : ''} ${isDisabled ? 'is-disabled' : ''}" data-focus="${area}" role="checkbox" aria-checked="${isSelected}" tabindex="0">
+            <div class="onboarding-grid-item ${isSelected ? 'is-selected' : ''} ${isDisabled ? 'is-disabled' : ''}"
+                 data-focus="${area}"
+                 role="checkbox"
+                 aria-checked="${isSelected}"
+                 aria-disabled="${isDisabled}"
+                 tabindex="${isDisabled ? '-1' : '0'}">
               <span class="onboarding-grid-label">${area}</span>
               <div class="onboarding-check-box">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
@@ -254,8 +309,10 @@ export function renderOnboarding(container, mode = 'new') {
         }).join('')}
       </div>
 
+      ${renderValidationBox()}
+
       <div class="onboarding-footer">
-        <button type="button" class="btn btn-primary btn-lg" id="btn-step-continue" ${count === 0 ? 'disabled' : ''}>
+        <button type="button" class="btn btn-primary btn-lg" id="btn-step-continue">
           Continue
         </button>
       </div>
@@ -263,7 +320,7 @@ export function renderOnboarding(container, mode = 'new') {
   }
 
   /* --------------------------------------------------------------------------
-     Step 4: Equipment Screen (Multiple Selection, "No Equipment" mutual exclusion)
+     Step 4: Equipment Screen (Multi-select, "No Equipment" mutual exclusion)
      -------------------------------------------------------------------------- */
   function renderEquipment() {
     const equipmentList = [
@@ -281,7 +338,8 @@ export function renderOnboarding(container, mode = 'new') {
       'Exercise Ball'
     ];
 
-    const hasSelection = wizardState.equipment.length > 0;
+    const isNoEquipment = wizardState.equipment.includes('No Equipment');
+    const hasGear = wizardState.equipment.length > 0 && !isNoEquipment;
 
     return `
       <div class="onboarding-title-area">
@@ -292,8 +350,21 @@ export function renderOnboarding(container, mode = 'new') {
       <div class="onboarding-grid-chips">
         ${equipmentList.map(eq => {
           const isSelected = wizardState.equipment.includes(eq);
+          let isDisabled = false;
+
+          if (eq === 'No Equipment') {
+            isDisabled = hasGear;
+          } else {
+            isDisabled = isNoEquipment;
+          }
+
           return `
-            <div class="onboarding-grid-item ${isSelected ? 'is-selected' : ''}" data-equipment="${eq}" role="checkbox" aria-checked="${isSelected}" tabindex="0">
+            <div class="onboarding-grid-item ${isSelected ? 'is-selected' : ''} ${isDisabled ? 'is-disabled' : ''}"
+                 data-equipment="${eq}"
+                 role="checkbox"
+                 aria-checked="${isSelected}"
+                 aria-disabled="${isDisabled}"
+                 tabindex="${isDisabled ? '-1' : '0'}">
               <span class="onboarding-grid-label">${eq}</span>
               <div class="onboarding-check-box">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
@@ -303,8 +374,10 @@ export function renderOnboarding(container, mode = 'new') {
         }).join('')}
       </div>
 
+      ${renderValidationBox()}
+
       <div class="onboarding-footer">
-        <button type="button" class="btn btn-primary btn-lg" id="btn-step-continue" ${!hasSelection ? 'disabled' : ''}>
+        <button type="button" class="btn btn-primary btn-lg" id="btn-step-continue">
           Continue
         </button>
       </div>
@@ -312,7 +385,7 @@ export function renderOnboarding(container, mode = 'new') {
   }
 
   /* --------------------------------------------------------------------------
-     Step 5: Training Frequency (Single Choice)
+     Step 5: Training Frequency (Single Choice, Required)
      -------------------------------------------------------------------------- */
   function renderFrequency() {
     const frequencies = [
@@ -345,8 +418,10 @@ export function renderOnboarding(container, mode = 'new') {
         }).join('')}
       </div>
 
+      ${renderValidationBox()}
+
       <div class="onboarding-footer">
-        <button type="button" class="btn btn-primary btn-lg" id="btn-step-continue" ${!wizardState.trainingDays ? 'disabled' : ''}>
+        <button type="button" class="btn btn-primary btn-lg" id="btn-step-continue">
           Continue
         </button>
       </div>
@@ -354,7 +429,7 @@ export function renderOnboarding(container, mode = 'new') {
   }
 
   /* --------------------------------------------------------------------------
-     Step 6: Workout Duration (Single Choice)
+     Step 6: Workout Duration (Single Choice, Required)
      -------------------------------------------------------------------------- */
   function renderDuration() {
     const durations = [
@@ -387,8 +462,10 @@ export function renderOnboarding(container, mode = 'new') {
         }).join('')}
       </div>
 
+      ${renderValidationBox()}
+
       <div class="onboarding-footer">
-        <button type="button" class="btn btn-primary btn-lg" id="btn-step-continue" ${!wizardState.workoutDuration ? 'disabled' : ''}>
+        <button type="button" class="btn btn-primary btn-lg" id="btn-step-continue">
           Continue
         </button>
       </div>
@@ -396,45 +473,82 @@ export function renderOnboarding(container, mode = 'new') {
   }
 
   /* --------------------------------------------------------------------------
-     Step 7: Optional Profile Information
+     Step 7: Personal Information (Name Required; Age, Height, Weight Optional)
      -------------------------------------------------------------------------- */
   function renderProfileInfo() {
     return `
       <div class="onboarding-title-area">
         <h1 class="onboarding-question">Tell us a little more about you</h1>
-        <p class="onboarding-hint">Helps tailor energy output estimates. All fields are optional except your name.</p>
+        <p class="onboarding-hint">Your name is required to personalize routines. Physical stats are optional.</p>
       </div>
 
       <div style="background-color: var(--color-surface); padding: var(--space-5); border-radius: var(--radius-xl); border: 1px solid var(--color-border); margin-bottom: var(--space-6);">
         <div class="onboarding-form-group">
-          <label class="onboarding-form-label" for="onboarding-input-name">Your Name *</label>
-          <input type="text" id="onboarding-input-name" class="onboarding-input" placeholder="e.g. Alex Morgan" value="${wizardState.name}" required autocomplete="name">
+          <label class="onboarding-form-label" for="onboarding-input-name">
+            <span>Your Name <span style="color: var(--color-primary); font-weight: bold;">*</span></span>
+          </label>
+          <input type="text"
+                 id="onboarding-input-name"
+                 class="onboarding-input"
+                 placeholder="Enter your name"
+                 value="${wizardState.name || ''}"
+                 required
+                 autocomplete="name">
         </div>
 
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3);">
           <div class="onboarding-form-group">
-            <label class="onboarding-form-label" for="onboarding-input-age">Age</label>
-            <input type="number" id="onboarding-input-age" class="onboarding-input" placeholder="28" value="${wizardState.age}" min="14" max="100">
+            <label class="onboarding-form-label" for="onboarding-input-age">
+              <span>Age</span>
+            </label>
+            <input type="number"
+                   id="onboarding-input-age"
+                   class="onboarding-input"
+                   placeholder="Age"
+                   value="${wizardState.age !== null && wizardState.age !== undefined ? wizardState.age : ''}"
+                   min="14"
+                   max="100">
           </div>
 
           <div class="onboarding-form-group">
-            <label class="onboarding-form-label" for="onboarding-input-height">Height</label>
-            <input type="text" id="onboarding-input-height" class="onboarding-input" placeholder="178 cm" value="${wizardState.height}">
+            <label class="onboarding-form-label" for="onboarding-input-height">
+              <span>Height</span>
+            </label>
+            <div class="onboarding-input-group">
+              <input type="number"
+                     id="onboarding-input-height"
+                     class="onboarding-input"
+                     placeholder="Height"
+                     value="${wizardState.height !== null && wizardState.height !== undefined ? wizardState.height : ''}"
+                     min="100"
+                     max="250">
+              <span class="onboarding-input-suffix">cm</span>
+            </div>
           </div>
 
           <div class="onboarding-form-group">
-            <label class="onboarding-form-label" for="onboarding-input-weight">Weight</label>
-            <input type="text" id="onboarding-input-weight" class="onboarding-input" placeholder="74 kg" value="${wizardState.weight}">
+            <label class="onboarding-form-label" for="onboarding-input-weight">
+              <span>Weight</span>
+            </label>
+            <div class="onboarding-input-group">
+              <input type="number"
+                     id="onboarding-input-weight"
+                     class="onboarding-input"
+                     placeholder="Weight"
+                     value="${wizardState.weight !== null && wizardState.weight !== undefined ? wizardState.weight : ''}"
+                     min="30"
+                     max="300">
+              <span class="onboarding-input-suffix">kg</span>
+            </div>
           </div>
         </div>
       </div>
 
+      ${renderValidationBox()}
+
       <div class="onboarding-footer">
         <button type="button" class="btn btn-primary btn-lg" id="btn-step-continue">
           Continue
-        </button>
-        <button type="button" class="btn btn-ghost btn-sm" id="btn-profile-skip" style="color: var(--color-text-secondary);">
-          Skip Details
         </button>
       </div>
     `;
@@ -444,13 +558,21 @@ export function renderOnboarding(container, mode = 'new') {
      Step 8: Completion Summary Screen
      -------------------------------------------------------------------------- */
   function renderCompletion() {
+    const focusDisplay = wizardState.targetMuscles.length > 0
+      ? wizardState.targetMuscles.join(', ')
+      : 'Full Body';
+
+    const equipDisplay = wizardState.equipment.length > 0
+      ? (wizardState.equipment.slice(0, 3).join(', ') + (wizardState.equipment.length > 3 ? ` +${wizardState.equipment.length - 3} more` : ''))
+      : 'No Equipment';
+
     return `
       <div style="text-align: center; margin-bottom: var(--space-6);">
         <div style="width: 64px; height: 64px; border-radius: var(--radius-pill); background-color: var(--color-success-subtle); color: var(--color-success); display: inline-flex; align-items: center; justify-content: center; margin-bottom: var(--space-3); box-shadow: var(--shadow-sm);">
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
         <h1 class="onboarding-question">Your Kinetix profile is ready.</h1>
-        <p class="onboarding-hint">Here is your tailored training blueprint.</p>
+        <p class="onboarding-hint">Review your tailored profile before launching your plan.</p>
       </div>
 
       <div class="onboarding-summary-card">
@@ -460,29 +582,49 @@ export function renderOnboarding(container, mode = 'new') {
         </div>
         <div class="onboarding-summary-row">
           <span class="onboarding-summary-key">Primary Goal</span>
-          <span class="onboarding-summary-val" style="color: var(--color-primary);">${wizardState.goal}</span>
+          <span class="onboarding-summary-val" style="color: var(--color-primary);">${wizardState.goal || '--'}</span>
         </div>
         <div class="onboarding-summary-row">
           <span class="onboarding-summary-key">Fitness Level</span>
-          <span class="onboarding-summary-val">${wizardState.fitnessLevel}</span>
+          <span class="onboarding-summary-val">${wizardState.fitnessLevel || '--'}</span>
         </div>
         <div class="onboarding-summary-row">
           <span class="onboarding-summary-key">Focus Areas</span>
-          <span class="onboarding-summary-val">${wizardState.focusAreas.join(', ')}</span>
+          <span class="onboarding-summary-val">${focusDisplay}</span>
         </div>
         <div class="onboarding-summary-row">
           <span class="onboarding-summary-key">Available Gear</span>
-          <span class="onboarding-summary-val">${wizardState.equipment.slice(0, 3).join(', ')}${wizardState.equipment.length > 3 ? ` +${wizardState.equipment.length - 3} more` : ''}</span>
+          <span class="onboarding-summary-val">${equipDisplay}</span>
         </div>
         <div class="onboarding-summary-row">
           <span class="onboarding-summary-key">Training Schedule</span>
-          <span class="onboarding-summary-val">${wizardState.trainingDays}</span>
+          <span class="onboarding-summary-val">${wizardState.trainingDays || '--'}</span>
         </div>
         <div class="onboarding-summary-row">
           <span class="onboarding-summary-key">Session Duration</span>
-          <span class="onboarding-summary-val">${wizardState.workoutDuration}</span>
+          <span class="onboarding-summary-val">${wizardState.workoutDuration || '--'}</span>
         </div>
+        ${wizardState.age ? `
+          <div class="onboarding-summary-row">
+            <span class="onboarding-summary-key">Age</span>
+            <span class="onboarding-summary-val">${wizardState.age} yrs</span>
+          </div>
+        ` : ''}
+        ${wizardState.height ? `
+          <div class="onboarding-summary-row">
+            <span class="onboarding-summary-key">Height</span>
+            <span class="onboarding-summary-val">${wizardState.height} cm</span>
+          </div>
+        ` : ''}
+        ${wizardState.weight ? `
+          <div class="onboarding-summary-row">
+            <span class="onboarding-summary-key">Weight</span>
+            <span class="onboarding-summary-val">${wizardState.weight} kg</span>
+          </div>
+        ` : ''}
       </div>
+
+      ${renderValidationBox()}
 
       <div class="onboarding-footer">
         <button type="button" class="btn btn-primary btn-lg" id="btn-finish-onboarding">
@@ -493,61 +635,9 @@ export function renderOnboarding(container, mode = 'new') {
   }
 
   /* --------------------------------------------------------------------------
-     Event Listeners Attachment
+     Event Listeners Attachment & Validation Logic
      -------------------------------------------------------------------------- */
   function attachStepEvents() {
-    // Back navigation
-    const backBtn = container.querySelector('#btn-onboarding-back');
-    if (backBtn) {
-      backBtn.addEventListener('click', () => {
-        if (currentStep > 1) {
-          currentStep--;
-          renderCurrentStep();
-        } else if (currentStep === 1) {
-          if (isEditMode) {
-            window.location.hash = '#profile';
-          } else {
-            currentStep = 0;
-            renderCurrentStep();
-          }
-        }
-      });
-    }
-
-    // Step 0: Welcome buttons
-    const welcomeStart = container.querySelector('#btn-welcome-start');
-    if (welcomeStart) {
-      welcomeStart.addEventListener('click', () => {
-        currentStep = 1;
-        renderCurrentStep();
-      });
-    }
-
-    const welcomeSkip = container.querySelector('#btn-welcome-skip');
-    if (welcomeSkip) {
-      welcomeSkip.addEventListener('click', () => {
-        completeOnboarding(wizardState);
-        if (window.showToast) {
-          window.showToast({ type: 'info', message: 'Welcome to Kinetix! You can customize your profile anytime.' });
-        }
-        window.location.hash = '#home';
-      });
-    }
-
-    // Header Skip step
-    const skipStep = container.querySelector('#btn-onboarding-skip-step');
-    if (skipStep) {
-      skipStep.addEventListener('click', () => {
-        if (currentStep < TOTAL_QUESTION_STEPS) {
-          currentStep++;
-          renderCurrentStep();
-        } else if (currentStep === TOTAL_QUESTION_STEPS) {
-          currentStep = 8;
-          renderCurrentStep();
-        }
-      });
-    }
-
     function bindSelectAction(selector, handler) {
       container.querySelectorAll(selector).forEach(el => {
         el.addEventListener('click', () => handler(el));
@@ -560,43 +650,120 @@ export function renderOnboarding(container, mode = 'new') {
       });
     }
 
+    function clearValidation() {
+      validationErrorMessage = '';
+      const msgEl = container.querySelector('.onboarding-validation-msg');
+      if (msgEl) msgEl.remove();
+    }
+
+    // Header Back button (reusable across all onboarding steps)
+    const backBtn = container.querySelector('#btn-onboarding-back');
+    if (backBtn) {
+      backBtn.addEventListener('click', () => {
+        clearValidation();
+        if (currentStep > 1) {
+          currentStep--;
+          saveCurrentState();
+          renderCurrentStep();
+        } else if (currentStep === 1) {
+          if (isEditMode) {
+            window.location.hash = '#profile';
+          } else {
+            currentStep = 0;
+            saveCurrentState();
+            renderCurrentStep();
+          }
+        }
+      });
+    }
+
+    // Step 0: Welcome Get Started
+    const welcomeStart = container.querySelector('#btn-welcome-start');
+    if (welcomeStart) {
+      welcomeStart.addEventListener('click', () => {
+        currentStep = 1;
+        saveCurrentState();
+        renderCurrentStep();
+      });
+    }
+
+    // Header Skip step (Only active on Step 7 for optional details)
+    const skipStep = container.querySelector('#btn-onboarding-skip-step');
+    if (skipStep && currentStep === 7) {
+      skipStep.addEventListener('click', () => {
+        // Name is still required before skipping optional details
+        const nameInput = container.querySelector('#onboarding-input-name');
+        const nameVal = nameInput ? nameInput.value.trim() : wizardState.name;
+        if (!nameVal) {
+          validationErrorMessage = 'Please enter your name.';
+          renderCurrentStep();
+          const freshNameInput = container.querySelector('#onboarding-input-name');
+          if (freshNameInput) freshNameInput.focus();
+          return;
+        }
+
+        wizardState.name = nameVal;
+        currentStep = 8;
+        saveCurrentState();
+        renderCurrentStep();
+      });
+    }
+
     // Step 1: Goal cards
     bindSelectAction('[data-goal]', (card) => {
       wizardState.goal = card.getAttribute('data-goal');
+      clearValidation();
+      saveCurrentState();
       renderCurrentStep();
     });
 
-    // Step 2: Level cards
+    // Step 2: Level cards (Beginner, Intermediate, Advanced)
     bindSelectAction('[data-level]', (card) => {
       wizardState.fitnessLevel = card.getAttribute('data-level');
+      clearValidation();
+      saveCurrentState();
       renderCurrentStep();
     });
 
-    // Step 3: Focus Areas (Max 3, Full Body mutual exclusion)
+    // Step 3: Target Muscles (Max 3, Full Body mutual exclusion)
     bindSelectAction('[data-focus]', (card) => {
+      if (card.classList.contains('is-disabled')) return;
       const item = card.getAttribute('data-focus');
+
       if (item === 'Full Body') {
-        // If Full Body is clicked, it becomes the single focus
-        wizardState.focusAreas = ['Full Body'];
+        // If Full Body is selected, it becomes the sole focus; clicking again toggles off
+        if (wizardState.targetMuscles.includes('Full Body')) {
+          wizardState.targetMuscles = [];
+        } else {
+          wizardState.targetMuscles = ['Full Body'];
+        }
       } else {
-        // Remove 'Full Body' if another specific muscle is clicked
-        wizardState.focusAreas = wizardState.focusAreas.filter(a => a !== 'Full Body');
-        if (wizardState.focusAreas.includes(item)) {
-          wizardState.focusAreas = wizardState.focusAreas.filter(a => a !== item);
-        } else if (wizardState.focusAreas.length < 3) {
-          wizardState.focusAreas.push(item);
+        // If a specific muscle is selected, remove Full Body
+        wizardState.targetMuscles = wizardState.targetMuscles.filter(a => a !== 'Full Body');
+        if (wizardState.targetMuscles.includes(item)) {
+          wizardState.targetMuscles = wizardState.targetMuscles.filter(a => a !== item);
+        } else if (wizardState.targetMuscles.length < 3) {
+          wizardState.targetMuscles.push(item);
         }
       }
+
+      clearValidation();
+      saveCurrentState();
       renderCurrentStep();
     });
 
     // Step 4: Equipment cards ("No Equipment" mutual exclusion)
     bindSelectAction('[data-equipment]', (card) => {
+      if (card.classList.contains('is-disabled')) return;
       const item = card.getAttribute('data-equipment');
+
       if (item === 'No Equipment') {
-        wizardState.equipment = ['No Equipment'];
+        if (wizardState.equipment.includes('No Equipment')) {
+          wizardState.equipment = [];
+        } else {
+          wizardState.equipment = ['No Equipment'];
+        }
       } else {
-        // Remove "No Equipment" if gear is added
         wizardState.equipment = wizardState.equipment.filter(eq => eq !== 'No Equipment');
         if (wizardState.equipment.includes(item)) {
           wizardState.equipment = wizardState.equipment.filter(eq => eq !== item);
@@ -604,18 +771,25 @@ export function renderOnboarding(container, mode = 'new') {
           wizardState.equipment.push(item);
         }
       }
+
+      clearValidation();
+      saveCurrentState();
       renderCurrentStep();
     });
 
     // Step 5: Frequency cards
     bindSelectAction('[data-frequency]', (card) => {
       wizardState.trainingDays = card.getAttribute('data-frequency');
+      clearValidation();
+      saveCurrentState();
       renderCurrentStep();
     });
 
     // Step 6: Duration cards
     bindSelectAction('[data-duration]', (card) => {
       wizardState.workoutDuration = card.getAttribute('data-duration');
+      clearValidation();
+      saveCurrentState();
       renderCurrentStep();
     });
 
@@ -626,37 +800,90 @@ export function renderOnboarding(container, mode = 'new') {
     const weightInput = container.querySelector('#onboarding-input-weight');
 
     function syncProfileInputs() {
-      if (nameInput) wizardState.name = nameInput.value.trim() || 'Athlete';
-      if (ageInput) wizardState.age = ageInput.value.trim();
-      if (heightInput) wizardState.height = heightInput.value.trim();
-      if (weightInput) wizardState.weight = weightInput.value.trim();
+      if (nameInput) wizardState.name = nameInput.value.trim();
+      if (ageInput) wizardState.age = ageInput.value.trim() ? parseInt(ageInput.value.trim(), 10) : null;
+      if (heightInput) wizardState.height = heightInput.value.trim() ? parseFloat(heightInput.value.trim()) : null;
+      if (weightInput) wizardState.weight = weightInput.value.trim() ? parseFloat(weightInput.value.trim()) : null;
     }
 
-    if (nameInput) nameInput.addEventListener('input', () => { wizardState.name = nameInput.value.trim(); });
-    if (ageInput) ageInput.addEventListener('input', () => { wizardState.age = ageInput.value.trim(); });
-    if (heightInput) heightInput.addEventListener('input', () => { wizardState.height = heightInput.value.trim(); });
-    if (weightInput) weightInput.addEventListener('input', () => { wizardState.weight = weightInput.value.trim(); });
-
-    const skipProfileBtn = container.querySelector('#btn-profile-skip');
-    if (skipProfileBtn) {
-      skipProfileBtn.addEventListener('click', () => {
-        syncProfileInputs();
-        currentStep = 8;
-        renderCurrentStep();
+    if (nameInput) {
+      nameInput.addEventListener('input', () => {
+        wizardState.name = nameInput.value;
+        if (nameInput.value.trim()) clearValidation();
+      });
+    }
+    if (ageInput) {
+      ageInput.addEventListener('input', () => {
+        wizardState.age = ageInput.value.trim() ? parseInt(ageInput.value.trim(), 10) : null;
+      });
+    }
+    if (heightInput) {
+      heightInput.addEventListener('input', () => {
+        wizardState.height = heightInput.value.trim() ? parseFloat(heightInput.value.trim()) : null;
+      });
+    }
+    if (weightInput) {
+      weightInput.addEventListener('input', () => {
+        wizardState.weight = weightInput.value.trim() ? parseFloat(weightInput.value.trim()) : null;
       });
     }
 
-    // Step Continue button (steps 1 through 7)
+    // Step Continue button (Steps 1 through 7)
     const continueBtn = container.querySelector('#btn-step-continue');
     if (continueBtn) {
       continueBtn.addEventListener('click', () => {
+        // Step-specific inline validation before advancing
+        if (currentStep === 1 && !wizardState.goal) {
+          validationErrorMessage = 'Please select your main goal.';
+          renderCurrentStep();
+          return;
+        }
+
+        if (currentStep === 2 && !wizardState.fitnessLevel) {
+          validationErrorMessage = 'Choose your training experience.';
+          renderCurrentStep();
+          return;
+        }
+
+        if (currentStep === 3 && (!wizardState.targetMuscles || wizardState.targetMuscles.length === 0)) {
+          validationErrorMessage = 'Choose up to 3 focus areas.';
+          renderCurrentStep();
+          return;
+        }
+
+        if (currentStep === 4 && (!wizardState.equipment || wizardState.equipment.length === 0)) {
+          validationErrorMessage = 'Please select your available equipment.';
+          renderCurrentStep();
+          return;
+        }
+
+        if (currentStep === 5 && !wizardState.trainingDays) {
+          validationErrorMessage = 'Please choose your training frequency.';
+          renderCurrentStep();
+          return;
+        }
+
+        if (currentStep === 6 && !wizardState.workoutDuration) {
+          validationErrorMessage = 'Please choose your workout duration.';
+          renderCurrentStep();
+          return;
+        }
+
         if (currentStep === 7) {
           syncProfileInputs();
+          if (!wizardState.name || !wizardState.name.trim()) {
+            validationErrorMessage = 'Please enter your name.';
+            renderCurrentStep();
+            const freshNameInput = container.querySelector('#onboarding-input-name');
+            if (freshNameInput) freshNameInput.focus();
+            return;
+          }
         }
-        if (currentStep < 8) {
-          currentStep++;
-          renderCurrentStep();
-        }
+
+        clearValidation();
+        currentStep++;
+        saveCurrentState();
+        renderCurrentStep();
       });
     }
 
@@ -664,26 +891,36 @@ export function renderOnboarding(container, mode = 'new') {
     const finishBtn = container.querySelector('#btn-finish-onboarding');
     if (finishBtn) {
       finishBtn.addEventListener('click', () => {
+        // Comprehensive validation of complete onboarding state
+        if (!wizardState.name || !wizardState.goal || !wizardState.fitnessLevel ||
+            !wizardState.targetMuscles.length || !wizardState.equipment.length ||
+            !wizardState.trainingDays || !wizardState.workoutDuration) {
+          validationErrorMessage = 'Please ensure all required steps are completed.';
+          renderCurrentStep();
+          return;
+        }
+
         completeOnboarding({
-          name: wizardState.name || 'Athlete',
+          name: wizardState.name.trim(),
           goal: wizardState.goal,
           fitnessLevel: wizardState.fitnessLevel,
-          focusAreas: wizardState.focusAreas,
+          targetMuscles: wizardState.targetMuscles,
           equipment: wizardState.equipment,
           trainingDays: wizardState.trainingDays,
           workoutDuration: wizardState.workoutDuration,
-          stats: {
-            age: wizardState.age || existingProfile.stats?.age || 28,
-            height: wizardState.height ? (wizardState.height.includes('cm') ? wizardState.height : `${wizardState.height} cm`) : (existingProfile.stats?.height || '178 cm'),
-            weight: wizardState.weight ? (wizardState.weight.includes('kg') ? wizardState.weight : `${wizardState.weight} kg`) : (existingProfile.stats?.weight || '74 kg'),
-            bmi: existingProfile.stats?.bmi || '23.4'
-          }
+          age: wizardState.age,
+          height: wizardState.height,
+          heightUnit: wizardState.heightUnit || 'cm',
+          weight: wizardState.weight,
+          weightUnit: wizardState.weightUnit || 'kg'
         });
 
         if (window.showToast) {
           window.showToast({
             type: 'success',
-            message: isEditMode ? 'Profile updated successfully!' : 'Your personalized fitness plan is ready!'
+            message: isEditMode
+              ? 'Profile updated successfully!'
+              : `Welcome to Kinetix, ${wizardState.name.trim()}!`
           });
         }
 

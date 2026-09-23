@@ -8,19 +8,19 @@ import { getProfile } from '../state/profile.js';
 
 export function renderProfile(container) {
   const profile = getProfile();
-  const userName = profile.name || USER_PROFILE.name;
+  const userName = profile.name || 'Athlete';
   const userInitials = userName.split(' ').map(n => n[0]).filter(Boolean).join('').toUpperCase() || 'A';
-  const age = profile.stats?.age || USER_PROFILE.stats.age;
-  const height = profile.stats?.height || USER_PROFILE.stats.height;
-  const weight = profile.stats?.weight || USER_PROFILE.stats.weight;
-  const bmi = profile.stats?.bmi || USER_PROFILE.stats.bmi;
+  const age = profile.stats?.age || '--';
+  const height = profile.stats?.height || '--';
+  const weight = profile.stats?.weight || '--';
+  const bmi = profile.stats?.bmi || '--';
 
   const focusList = Array.isArray(profile.focusAreas) && profile.focusAreas.length > 0
     ? profile.focusAreas
     : ['Full Body'];
   const equipmentList = Array.isArray(profile.equipment) && profile.equipment.length > 0
     ? profile.equipment
-    : ['Dumbbells', 'Resistance Bands'];
+    : ['No Equipment'];
 
   container.innerHTML = `
     <div class="view-enter">
