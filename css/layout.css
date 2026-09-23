@@ -91,6 +91,7 @@
   scroll-snap-type: x mandatory;
   gap: var(--space-3);
   padding-bottom: var(--space-2);
+  -ms-overflow-style: none;
   scrollbar-width: none;
 }
 

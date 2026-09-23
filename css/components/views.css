@@ -150,6 +150,7 @@
   display: flex;
   gap: var(--space-2);
   overflow-x: auto;
+  -ms-overflow-style: none;
   scrollbar-width: none;
   padding-bottom: var(--space-2);
   margin-bottom: var(--space-4);
