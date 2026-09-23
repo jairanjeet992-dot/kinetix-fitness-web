@@ -89,7 +89,6 @@
   display: flex;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
   gap: var(--space-3);
   padding-bottom: var(--space-2);
   scrollbar-width: none;

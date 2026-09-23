@@ -120,12 +120,12 @@ export class Router {
     const isSubView = route === 'workout' || route === 'player' || route === 'exercises';
 
     if (this.topBarBackBtn) {
-      this.topBarBackBtn.style.visibility = isSubView ? 'visible' : 'hidden';
+      this.topBarBackBtn.classList.toggle('top-bar-back-hidden', !isSubView);
       this.topBarBackBtn.setAttribute('aria-label', isSubView ? 'Go back' : '');
     }
 
     if (route === 'home') {
-      this.topBarTitle.innerHTML = `<span style="letter-spacing: -0.02em; font-weight: 700;">KINETIX</span>`;
+      this.topBarTitle.innerHTML = `<span class="top-bar-brand-title">KINETIX</span>`;
     } else if (route === 'workouts') {
       this.topBarTitle.textContent = 'Workouts';
     } else if (route === 'workout') {

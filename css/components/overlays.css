@@ -13,8 +13,8 @@
   position: fixed;
   inset: 0;
   background-color: rgba(17, 17, 17, 0.45);
-  backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
   z-index: var(--z-index-modal);
   opacity: 0;
   visibility: hidden;

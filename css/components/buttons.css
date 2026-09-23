@@ -30,8 +30,8 @@
               border-color var(--transition-fast),
               transform var(--transition-fast),
               box-shadow var(--transition-fast);
-  user-select: none;
   -webkit-user-select: none;
+  user-select: none;
 }
 
 .btn:active:not(:disabled) {

@@ -17,8 +17,8 @@
   height: calc(var(--topbar-height) + var(--safe-area-top));
   padding-top: var(--safe-area-top);
   background-color: var(--glass-bg);
-  backdrop-filter: var(--glass-backdrop-blur);
   -webkit-backdrop-filter: var(--glass-backdrop-blur);
+  backdrop-filter: var(--glass-backdrop-blur);
   border-bottom: 1px solid var(--color-border);
   z-index: var(--z-index-sticky);
   display: flex;
@@ -63,8 +63,8 @@
   height: calc(var(--bottom-nav-height) + var(--safe-area-bottom));
   padding-bottom: var(--safe-area-bottom);
   background-color: var(--glass-bg);
-  backdrop-filter: var(--glass-backdrop-blur);
   -webkit-backdrop-filter: var(--glass-backdrop-blur);
+  backdrop-filter: var(--glass-backdrop-blur);
   border-top: 1px solid var(--color-border);
   z-index: var(--z-index-fixed);
   display: flex;
@@ -155,4 +155,83 @@
     height: 20px;
     stroke-width: 2;
   }
+
+  .desktop-brand-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-6);
+    padding: 0 var(--space-2);
+  }
+
+  .desktop-brand-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    background-color: var(--color-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #FFFFFF;
+    font-weight: 800;
+    font-size: 1.1rem;
+  }
+
+  .desktop-brand-text {
+    font-weight: 800;
+    font-size: 1.25rem;
+    letter-spacing: -0.03em;
+    color: var(--color-text-primary);
+  }
+
+  .desktop-brand-badge {
+    font-size: 10px;
+    margin-left: auto;
+  }
+
+  .desktop-user-footer {
+    margin-top: auto;
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border-subtle);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .desktop-user-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--radius-pill);
+    background-color: var(--color-primary-subtle);
+    color: var(--color-primary);
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+  }
+
+  .desktop-user-info {
+    overflow: hidden;
+  }
+
+  .desktop-user-name {
+    font-size: 0.875rem;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+  }
+}
+
+.top-bar-brand-title {
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+.top-bar-back-hidden {
+  visibility: hidden;
+}
+
+.app-view-container {
+  padding-top: var(--space-4);
 }
