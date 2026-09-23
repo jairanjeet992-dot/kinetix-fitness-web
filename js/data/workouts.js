@@ -144,8 +144,37 @@ export const WORKOUTS = [
   }
 ];
 
+// Cache for dynamically generated workouts
+const generatedWorkoutsMap = new Map();
+
+/**
+ * Registers a dynamically generated workout so it can be retrieved by ID across views.
+ */
+export function registerGeneratedWorkout(workout) {
+  if (workout && workout.id) {
+    generatedWorkoutsMap.set(workout.id, workout);
+    // Also save as latest active generated session
+    generatedWorkoutsMap.set('latest-generated', workout);
+  }
+}
+
 export function getWorkoutById(id) {
-  return WORKOUTS.find(w => w.id === id);
+  if (!id) return null;
+  // 1. Check static library
+  const staticFound = WORKOUTS.find(w => w.id === id);
+  if (staticFound) return staticFound;
+
+  // 2. Check generated registry
+  if (generatedWorkoutsMap.has(id)) {
+    return generatedWorkoutsMap.get(id);
+  }
+
+  // 3. Fallback to latest generated if id starts with 'gen-'
+  if (id.startsWith('gen-') && generatedWorkoutsMap.has('latest-generated')) {
+    return generatedWorkoutsMap.get('latest-generated');
+  }
+
+  return null;
 }
 
 export function getRecommendedWorkouts() {

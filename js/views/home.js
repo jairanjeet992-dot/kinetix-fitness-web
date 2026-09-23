@@ -3,19 +3,32 @@
  * Phase 1: Core Information Architecture
  */
 
-import { WORKOUTS, getFeaturedWorkout, getRecommendedWorkouts } from '../data/workouts.js';
+import { WORKOUTS, getFeaturedWorkout, getRecommendedWorkouts, registerGeneratedWorkout } from '../data/workouts.js';
 import { WEEKLY_PLAN } from '../data/plans.js';
 import { getProfile } from '../state/profile.js';
+import { generateWorkout } from '../engine/workout-generator.js';
+
+let currentVariationSeed = 0;
 
 export function renderHome(container) {
   const profile = getProfile();
-  const featured = getFeaturedWorkout();
   const recommended = getRecommendedWorkouts().slice(0, 3);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
   const userName = profile.name || 'Athlete';
   const userInitials = userName.split(' ').map(n => n[0]).filter(Boolean).join('').toUpperCase() || 'A';
+
+  // Generate today's personalized session from workout engine
+  const generatedResult = generateWorkout(profile, currentVariationSeed);
+  let todayWorkout = null;
+  if (generatedResult.ok) {
+    todayWorkout = generatedResult;
+    registerGeneratedWorkout(todayWorkout);
+  } else {
+    // Graceful fallback to static featured if engine cannot generate
+    todayWorkout = getFeaturedWorkout();
+  }
 
   // Personalized preview titles
   const planTitles = {
@@ -31,7 +44,7 @@ export function renderHome(container) {
   const focusText = Array.isArray(profile.focusAreas) && profile.focusAreas.length > 0
     ? (profile.focusAreas.includes('Full Body') ? 'Full Body' : `${profile.focusAreas.join(' & ')} focused`)
     : 'Full Body';
-  const durationText = profile.workoutDuration ? `${profile.workoutDuration} workouts` : '20–30 min workouts';
+  const durationText = `${todayWorkout.durationMin || todayWorkout.durationMinutes || 30} min session`;
 
   container.innerHTML = `
     <div class="view-enter">
@@ -53,44 +66,76 @@ export function renderHome(container) {
       </div>
 
       <!-- Primary Action: Today's Workout Hero Card -->
-      <section class="today-hero-card" aria-labelledby="today-workout-title">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-3); flex-wrap: wrap; gap: var(--space-2);">
-          <span class="badge badge-primary">TODAY'S SESSION</span>
-          <span class="badge" style="background: rgba(255,255,255,0.08);">${planTitle}</span>
+      <section class="today-hero-card" id="today-hero-section" aria-labelledby="today-workout-title">
+        ${!generatedResult.ok ? `
+          <div class="card" style="background: rgba(255, 84, 46, 0.08); border-color: var(--color-primary); padding: var(--space-5); margin-bottom: var(--space-4);">
+            <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); color: var(--color-primary); font-weight: 600;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span>Equipment Configuration Required</span>
+            </div>
+            <p class="text-body-sm" style="color: var(--color-text-secondary); margin-bottom: var(--space-4);">
+              ${generatedResult.error}
+            </p>
+            <a href="#onboarding/edit" class="btn btn-primary btn-sm">Update Equipment in Profile &rarr;</a>
+          </div>
+        ` : ''}
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3); flex-wrap: wrap; gap: var(--space-2);">
+          <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
+            <span class="badge badge-primary">TODAY'S SESSION</span>
+            <span class="badge" style="background: rgba(255,255,255,0.08);">${planTitle}</span>
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-regenerate-workout" aria-label="Regenerate routine with alternative exercises" style="padding: 4px 10px; font-size: 13px; color: var(--color-text-secondary);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            Try Another
+          </button>
         </div>
 
         <h2 id="today-workout-title" class="text-h1" style="margin-bottom: var(--space-2); color: var(--color-text-primary);">
-          ${featured.title}
+          ${todayWorkout.title}
         </h2>
         <p class="text-body" style="margin-bottom: var(--space-4); max-width: 540px;">
           ${focusText} sessions calibrated for ${profile.fitnessLevel.toLowerCase()} intensity &bull; ${durationText}.
         </p>
 
+        <!-- "Why this workout?" Personalization Explanation -->
+        ${todayWorkout.explanation ? `
+          <div class="workout-explanation-box" style="background: var(--color-surface-secondary); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); border-left: 3px solid var(--color-primary);">
+            <div style="display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-primary); margin-bottom: 4px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              Why this workout?
+            </div>
+            <div class="text-body-sm" style="color: var(--color-text-secondary); line-height: 1.45;">
+              ${todayWorkout.explanation}
+            </div>
+          </div>
+        ` : ''}
+
         <div style="display: flex; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-5); color: var(--color-text-secondary); font-size: var(--font-size-body-sm);">
           <span class="workout-meta-item">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="16" height="16"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            <strong>${profile.workoutDuration || `${featured.durationMin} Min`}</strong>
+            <strong>${todayWorkout.durationMin || todayWorkout.durationMinutes} Min</strong>
           </span>
           <span class="workout-meta-item">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="16" height="16"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-            ${featured.estimatedCalories} kcal
+            ~${todayWorkout.estimatedCalories} kcal
           </span>
           <span class="workout-meta-item">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="16" height="16"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
-            ${profile.fitnessLevel}
+            ${todayWorkout.difficulty}
           </span>
           <span class="workout-meta-item">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="16" height="16"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
-            ${featured.exerciseIds.length} Exercises
+            ${todayWorkout.exerciseIds ? todayWorkout.exerciseIds.length : todayWorkout.exercises.length} Exercises
           </span>
         </div>
 
         <div class="session-actions">
-          <a href="#player/${featured.id}" class="btn btn-primary btn-lg">
+          <a href="#player/${todayWorkout.id}" class="btn btn-primary btn-lg">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
             Start Workout
           </a>
-          <a href="#workout/${featured.id}" class="btn btn-outline btn-lg">
+          <a href="#workout/${todayWorkout.id}" class="btn btn-outline btn-lg">
             View Routine Details
           </a>
         </div>
@@ -207,13 +252,27 @@ export function renderHome(container) {
     });
   });
 
+  const regenBtn = container.querySelector('#btn-regenerate-workout');
+  if (regenBtn) {
+    regenBtn.addEventListener('click', () => {
+      currentVariationSeed++;
+      renderHome(container);
+      if (window.showToast) {
+        window.showToast({
+          type: 'success',
+          message: 'Personalized routine updated with new exercise variations.'
+        });
+      }
+    });
+  }
+
   const customBtn = container.querySelector('#btn-custom-plan-quick');
   if (customBtn) {
     customBtn.addEventListener('click', () => {
       if (window.showToast) {
         window.showToast({
           type: 'info',
-          message: 'Custom Workout Builder will unlock in Phase 2.'
+          message: 'Custom Workout Builder will unlock in Phase 3.'
         });
       }
     });
