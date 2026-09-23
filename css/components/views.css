@@ -1,0 +1,445 @@
+/**
+ * VIEW-SPECIFIC STYLES - KINETIX
+ * Phase 1: Core Information Architecture
+ *
+ * Dedicated styling for Home, Workouts discovery, Workout Detail,
+ * Weekly Plans calendar, Progress charts, Exercise Library, and Workout Player Preview.
+ */
+
+/* View Transition Wrapper */
+.view-enter {
+  animation: viewFadeIn var(--transition-normal);
+}
+
+@keyframes viewFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ==========================================================================
+   Home Screen Specifics
+   ========================================================================== */
+.home-greeting-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-5);
+}
+
+.home-user-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-tertiary);
+  border: 2px solid var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+  font-size: var(--font-size-body);
+}
+
+.today-hero-card {
+  position: relative;
+  border-radius: var(--radius-xl);
+  background: linear-gradient(145deg, #FFFFFF 0%, #F5F5F1 100%);
+  border: 1px solid var(--color-border);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: var(--space-6);
+  overflow: hidden;
+}
+
+.today-hero-card::after {
+  content: "";
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 140px;
+  height: 140px;
+  border-radius: var(--radius-pill);
+  background: radial-gradient(circle, rgba(255, 84, 46, 0.12) 0%, rgba(255, 84, 46, 0) 70%);
+  pointer-events: none;
+}
+
+.quick-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+
+.quick-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-2);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  text-align: center;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  transition: all var(--transition-fast);
+}
+
+.quick-action-btn:hover {
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-2px);
+}
+
+.quick-action-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-primary-subtle);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ==========================================================================
+   Workouts Discovery & Search
+   ========================================================================== */
+.search-wrapper {
+  position: relative;
+  margin-bottom: var(--space-4);
+}
+
+.search-input {
+  width: 100%;
+  height: 48px;
+  padding: 0 var(--space-4) 0 44px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  font-size: var(--font-size-body);
+  transition: all var(--transition-fast);
+}
+
+.search-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+
+.search-icon-left {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.filter-pills-scroll {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.filter-pills-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.multi-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-5);
+  align-items: center;
+}
+
+.filter-select {
+  height: 36px;
+  padding: 0 var(--space-3);
+  font-size: var(--font-size-body-sm);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface-secondary);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+/* ==========================================================================
+   Plans Screen: Weekly Calendar Strip
+   ========================================================================== */
+.week-calendar-strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+}
+
+.calendar-day-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-3) 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  cursor: pointer;
+  text-align: center;
+  transition: all var(--transition-fast);
+}
+
+.calendar-day-card:hover {
+  border-color: var(--color-border-strong);
+}
+
+.calendar-day-card.is-active-day {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-subtle);
+  background-color: #FFFFFF;
+}
+
+.calendar-day-name {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+  margin-bottom: 2px;
+}
+
+.calendar-day-date {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.calendar-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+}
+
+.calendar-status-dot.status-completed { background-color: var(--color-success); }
+.calendar-status-dot.status-today { background-color: var(--color-primary); }
+.calendar-status-dot.status-upcoming { background-color: var(--color-border-strong); }
+.calendar-status-dot.status-rest { background-color: transparent; border: 1.5px solid var(--color-text-muted); }
+
+/* ==========================================================================
+   Progress Screen: CSS/SVG Bar Chart
+   ========================================================================== */
+.bar-chart-container {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  height: 160px;
+  padding-top: var(--space-4);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  gap: var(--space-2);
+}
+
+.bar-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  height: 100%;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.bar-pill {
+  width: 100%;
+  max-width: 28px;
+  background-color: var(--color-surface-secondary);
+  border-radius: var(--radius-pill);
+  transition: height var(--transition-slow);
+  position: relative;
+}
+
+.bar-pill.is-completed {
+  background-color: var(--color-primary);
+}
+
+.bar-pill.is-today {
+  background-color: var(--color-primary);
+  box-shadow: 0 0 12px rgba(255, 84, 46, 0.4);
+}
+
+.bar-pill.is-rest {
+  background-color: var(--color-surface-tertiary);
+  opacity: 0.7;
+}
+
+.bar-label {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
+.muscle-bar-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+
+.muscle-bar-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-secondary);
+}
+
+/* ==========================================================================
+   Profile Screen Styles
+   ========================================================================== */
+.profile-stat-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+
+.profile-stat-val {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.setting-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.toggle-switch {
+  position: relative;
+  width: 48px;
+  height: 28px;
+  display: inline-block;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  transition: all var(--transition-fast);
+}
+
+.toggle-slider::before {
+  position: absolute;
+  content: "";
+  height: 22px;
+  width: 22px;
+  left: 3px;
+  bottom: 3px;
+  background-color: #FFFFFF;
+  border-radius: var(--radius-pill);
+  transition: all var(--transition-fast);
+  box-shadow: var(--shadow-xs);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background-color: var(--color-primary);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(20px);
+}
+
+/* ==========================================================================
+   Workout Player Preview Styles
+   ========================================================================== */
+.player-container {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-surface);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+
+.player-media-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  background-color: #1A1A1A;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  padding: var(--space-4);
+  text-align: center;
+}
+
+.player-media-stage svg {
+  width: 56px;
+  height: 56px;
+  stroke: rgba(255, 255, 255, 0.85);
+  margin-bottom: var(--space-2);
+}
+
+.player-timer-display {
+  font-size: 3.5rem;
+  font-weight: var(--font-weight-bold);
+  font-family: var(--font-family-mono);
+  letter-spacing: -0.04em;
+  color: var(--color-text-primary);
+  line-height: 1;
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.player-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  margin: var(--space-4) 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .today-hero-card {
+    padding: var(--space-4);
+  }
+  .week-calendar-strip {
+    gap: 4px;
+  }
+  .calendar-day-card {
+    padding: var(--space-2) 2px;
+  }
+}

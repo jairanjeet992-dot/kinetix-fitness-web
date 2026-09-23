@@ -1,0 +1,255 @@
+/**
+ * PROFILE VIEW - KINETIX
+ * Phase 1: Core Information Architecture
+ */
+
+import { USER_PROFILE } from '../data/profile.js';
+
+export function renderProfile(container) {
+  container.innerHTML = `
+    <div class="view-enter">
+      <!-- Profile Header Card -->
+      <section class="card" style="margin-bottom: var(--space-6); background: linear-gradient(135deg, #FFFFFF 0%, #FAF9F7 100%);">
+        <div style="display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap;">
+          <div style="width: 72px; height: 72px; border-radius: var(--radius-pill); background-color: var(--color-primary-subtle); border: 3px solid var(--color-surface); box-shadow: var(--shadow-sm); display: flex; align-items: center; justify-content: center; font-size: 1.75rem; font-weight: 700; color: var(--color-primary);">
+            ${USER_PROFILE.name.split(' ').map(n => n[0]).join('')}
+          </div>
+          <div>
+            <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: 2px;">
+              <h1 class="text-h1" style="font-size: 1.5rem;">${USER_PROFILE.name}</h1>
+              <span class="badge badge-primary">PRO</span>
+            </div>
+            <div class="text-caption text-secondary">${USER_PROFILE.handle} &bull; ${USER_PROFILE.joinedDate}</div>
+            <div class="text-caption text-primary-color" style="font-weight: 600; margin-top: 4px;">
+              ${USER_PROFILE.membershipTier}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Physical Baseline Statistics (4-Up Grid) -->
+      <section class="section" style="padding-top: 0;">
+        <div class="section-header">
+          <h2 class="section-title">Physical Profile</h2>
+          <button class="btn btn-ghost btn-sm" id="btn-edit-bio">Edit</button>
+        </div>
+
+        <div class="grid grid-cols-2 grid-tablet-4 gap-3">
+          <div class="profile-stat-box">
+            <span class="text-caption text-muted">AGE</span>
+            <div class="profile-stat-val" style="margin-top: 4px;">${USER_PROFILE.stats.age}</div>
+            <span class="text-caption text-secondary">Years</span>
+          </div>
+
+          <div class="profile-stat-box">
+            <span class="text-caption text-muted">HEIGHT</span>
+            <div class="profile-stat-val" style="margin-top: 4px;">${USER_PROFILE.stats.height}</div>
+            <span class="text-caption text-secondary">Standing</span>
+          </div>
+
+          <div class="profile-stat-box">
+            <span class="text-caption text-muted">WEIGHT</span>
+            <div class="profile-stat-val" style="margin-top: 4px;">${USER_PROFILE.stats.weight}</div>
+            <span class="text-caption text-secondary">Target: 73 kg</span>
+          </div>
+
+          <div class="profile-stat-box">
+            <span class="text-caption text-muted">BMI</span>
+            <div class="profile-stat-val" style="margin-top: 4px;">${USER_PROFILE.stats.bmi}</div>
+            <span class="text-caption text-success">Optimal</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Fitness & Training Objectives -->
+      <section class="card" style="margin-bottom: var(--space-6);">
+        <div class="section-header" style="margin-bottom: var(--space-3);">
+          <h2 class="text-h2">Training Preferences</h2>
+        </div>
+
+        <div class="flex flex-col gap-3">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border-subtle); padding-bottom: var(--space-2);">
+            <div>
+              <div class="text-label">Primary Goal</div>
+              <div class="text-caption text-secondary">Focus of weekly recommendations</div>
+            </div>
+            <span class="badge badge-primary">${USER_PROFILE.fitness.primaryGoal}</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border-subtle); padding-bottom: var(--space-2);">
+            <div>
+              <div class="text-label">Conditioning Level</div>
+              <div class="text-caption text-secondary">Determines interval pacing and load</div>
+            </div>
+            <span class="badge badge-dark">${USER_PROFILE.fitness.fitnessLevel}</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border-subtle); padding-bottom: var(--space-2);">
+            <div>
+              <div class="text-label">Target Duration</div>
+              <div class="text-caption text-secondary">Ideal daily workout window</div>
+            </div>
+            <span class="badge">${USER_PROFILE.fitness.preferredDuration}</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+              <div class="text-label">Equipped Home Gym</div>
+              <div class="text-caption text-secondary" style="margin-bottom: var(--space-2);">Filtered in workout discovery</div>
+              <div style="display: flex; gap: var(--space-1); flex-wrap: wrap;">
+                ${USER_PROFILE.fitness.availableEquipment.map(eq => `<span class="badge">${eq}</span>`).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- App Settings & Ergonomics -->
+      <section class="card" style="margin-bottom: var(--space-6);">
+        <div class="section-header" style="margin-bottom: var(--space-3);">
+          <h2 class="text-h2">Preferences & Audio</h2>
+        </div>
+
+        <div class="flex flex-col">
+          <div class="setting-toggle-row">
+            <div>
+              <div class="text-label">Audio Countdown Cues</div>
+              <div class="text-caption text-secondary">Voice alerts for remaining interval seconds</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-audio-cues" ${USER_PROFILE.settings.audioCues ? 'checked' : ''}>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-toggle-row">
+            <div>
+              <div class="text-label">Daily Workout Reminders</div>
+              <div class="text-caption text-secondary">Morning notification to complete plan</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-notifications" ${USER_PROFILE.settings.pushNotifications ? 'checked' : ''}>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-toggle-row">
+            <div>
+              <div class="text-label">Reduced Motion Mode</div>
+              <div class="text-caption text-secondary">Minimize interface animations for comfort</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-reduced-motion" ${document.body?.classList?.contains?.('reduced-motion') ? 'checked' : ''}>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-toggle-row" style="border-bottom: none;">
+            <div>
+              <div class="text-label">Vibration Haptics</div>
+              <div class="text-caption text-secondary">Haptic buzz at end of interval set</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-haptics" ${USER_PROFILE.settings.vibrationHaptic ? 'checked' : ''}>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- Account Actions Placeholder -->
+      <section class="card" style="margin-bottom: var(--space-6); background-color: var(--color-surface);">
+        <div class="flex flex-col gap-2">
+          <button class="btn btn-outline btn-block" style="justify-content: flex-start;" id="btn-membership-plan">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+            Manage Kinetix Pro Subscription
+          </button>
+          <button class="btn btn-outline btn-block" style="justify-content: flex-start;" id="btn-export-data">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Export Workout & Health Data (JSON)
+          </button>
+          <button class="btn btn-danger btn-block" style="justify-content: flex-start; margin-top: var(--space-2);" id="btn-logout-placeholder">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+            Log Out of Kinetix
+          </button>
+        </div>
+      </section>
+    </div>
+  `;
+
+  // Attach toggle listeners
+  const motionToggle = container.querySelector('#toggle-reduced-motion');
+  if (motionToggle) {
+    motionToggle.addEventListener('change', (e) => {
+      document.body.classList.toggle('reduced-motion', e.target.checked);
+      if (window.showToast) {
+        window.showToast({
+          type: 'info',
+          message: e.target.checked ? 'Reduced motion mode activated.' : 'Standard fluid animations restored.'
+        });
+      }
+    });
+  }
+
+  const audioToggle = container.querySelector('#toggle-audio-cues');
+  if (audioToggle) {
+    audioToggle.addEventListener('change', (e) => {
+      USER_PROFILE.settings.audioCues = e.target.checked;
+      if (window.showToast) {
+        window.showToast({
+          type: 'info',
+          message: `Audio cues ${e.target.checked ? 'enabled' : 'disabled'}.`
+        });
+      }
+    });
+  }
+
+  const notifToggle = container.querySelector('#toggle-notifications');
+  if (notifToggle) {
+    notifToggle.addEventListener('change', (e) => {
+      USER_PROFILE.settings.pushNotifications = e.target.checked;
+      if (window.showToast) {
+        window.showToast({
+          type: 'info',
+          message: `Daily training reminders ${e.target.checked ? 'enabled' : 'disabled'}.`
+        });
+      }
+    });
+  }
+
+  const editBioBtn = container.querySelector('#btn-edit-bio');
+  if (editBioBtn) {
+    editBioBtn.addEventListener('click', () => {
+      if (window.showToast) {
+        window.showToast({
+          type: 'info',
+          message: 'Physical stats editing will connect to local storage in Phase 2.'
+        });
+      }
+    });
+  }
+
+  const exportBtn = container.querySelector('#btn-export-data');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      if (window.showToast) {
+        window.showToast({
+          type: 'success',
+          message: 'Workout log exported to local device.'
+        });
+      }
+    });
+  }
+
+  const logoutBtn = container.querySelector('#btn-logout-placeholder');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', () => {
+      if (window.showToast) {
+        window.showToast({
+          type: 'warning',
+          message: 'Guest session — no cloud credentials to unlink.'
+        });
+      }
+    });
+  }
+}

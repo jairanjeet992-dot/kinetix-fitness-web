@@ -1,0 +1,171 @@
+/**
+ * OVERLAYS COMPONENT - FITNESS WEB
+ * Phase 0: Design Foundation
+ *
+ * Modals, Mobile Bottom Sheets, and Confirmation Dialogs.
+ * Includes graceful fallback for backdrop-filter.
+ */
+
+/* ==========================================================================
+   Backdrop / Scrim
+   ========================================================================== */
+.overlay-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(17, 17, 17, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: var(--z-index-modal);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--transition-normal), visibility var(--transition-normal);
+}
+
+.overlay-backdrop.is-active {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* ==========================================================================
+   Modal Dialog
+   ========================================================================== */
+.modal-container {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -46%) scale(0.96);
+  width: calc(100% - 32px);
+  max-width: 480px;
+  background-color: var(--color-surface);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-float);
+  z-index: calc(var(--z-index-modal) + 1);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--transition-normal),
+              transform var(--transition-normal),
+              visibility var(--transition-normal);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-container.is-active {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.modal-header {
+  padding: var(--space-5) var(--space-6) var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-title {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.modal-close {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.modal-close:hover {
+  background-color: var(--color-surface-secondary);
+  color: var(--color-text-primary);
+}
+
+.modal-body {
+  padding: var(--space-3) var(--space-6) var(--space-5);
+  overflow-y: auto;
+  font-size: var(--font-size-body);
+  color: var(--color-text-secondary);
+}
+
+.modal-footer {
+  padding: var(--space-4) var(--space-6);
+  background-color: var(--color-surface-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+/* ==========================================================================
+   Mobile Bottom Sheet
+   Touch-friendly sliding drawer with grab handle
+   ========================================================================== */
+.bottom-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: var(--color-surface);
+  border-top-left-radius: var(--radius-xl);
+  border-top-right-radius: var(--radius-xl);
+  box-shadow: var(--shadow-float);
+  border-top: 1px solid var(--color-border);
+  z-index: var(--z-index-bottom-sheet);
+  transform: translateY(100%);
+  transition: transform var(--transition-normal);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: var(--safe-area-bottom);
+}
+
+.bottom-sheet.is-active {
+  transform: translateY(0);
+}
+
+.bottom-sheet-handle {
+  width: 40px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-border-strong);
+  margin: var(--space-3) auto var(--space-2);
+  cursor: grab;
+}
+
+.bottom-sheet-content {
+  padding: var(--space-4) var(--space-6) var(--space-6);
+  overflow-y: auto;
+}
+
+/* Desktop Bottom Sheet fallback (behaves like a centered modal or side panel) */
+@media (min-width: 1024px) {
+  .bottom-sheet {
+    max-width: 480px;
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    top: 50%;
+    transform: translate(-50%, -45%);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--color-border);
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  .bottom-sheet.is-active {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(-50%, -50%);
+  }
+
+  .bottom-sheet-handle {
+    display: none;
+  }
+}

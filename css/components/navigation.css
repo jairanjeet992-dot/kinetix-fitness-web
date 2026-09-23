@@ -1,0 +1,158 @@
+/**
+ * NAVIGATION COMPONENT - FITNESS WEB
+ * Phase 0: Design Foundation
+ *
+ * Top Bar, Bottom Navigation (Mobile), and Desktop Nav support.
+ * Targets navigation items: Home, Workouts, Plans, Progress, Profile.
+ */
+
+/* ==========================================================================
+   Top Navigation Bar
+   ========================================================================== */
+.top-bar {
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--topbar-height) + var(--safe-area-top));
+  padding-top: var(--safe-area-top);
+  background-color: var(--glass-bg);
+  backdrop-filter: var(--glass-backdrop-blur);
+  -webkit-backdrop-filter: var(--glass-backdrop-blur);
+  border-bottom: 1px solid var(--color-border);
+  z-index: var(--z-index-sticky);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-left: var(--space-4);
+  padding-right: var(--space-4);
+}
+
+.top-bar-action {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  color: var(--color-text-primary);
+  transition: background-color var(--transition-fast);
+}
+
+.top-bar-action:hover {
+  background-color: var(--color-surface-secondary);
+}
+
+.top-bar-title {
+  font-size: var(--font-size-body-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  text-align: center;
+  flex: 1;
+}
+
+/* ==========================================================================
+   Bottom Navigation (Mobile)
+   5 Core items: Home, Workouts, Plans, Progress, Profile
+   ========================================================================== */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--bottom-nav-height) + var(--safe-area-bottom));
+  padding-bottom: var(--safe-area-bottom);
+  background-color: var(--glass-bg);
+  backdrop-filter: var(--glass-backdrop-blur);
+  -webkit-backdrop-filter: var(--glass-backdrop-blur);
+  border-top: 1px solid var(--color-border);
+  z-index: var(--z-index-fixed);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding-left: var(--space-2);
+  padding-right: var(--space-2);
+}
+
+.bottom-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  flex: 1;
+  height: 100%;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  transition: color var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+  min-height: var(--min-touch-target);
+}
+
+.bottom-nav-item svg {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  stroke-width: 2;
+  transition: transform var(--transition-fast);
+}
+
+.bottom-nav-item:hover {
+  color: var(--color-text-primary);
+}
+
+.bottom-nav-item.is-active {
+  color: var(--color-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.bottom-nav-item.is-active svg {
+  transform: translateY(-1px);
+}
+
+/* ==========================================================================
+   Desktop Navigation Adapters
+   ========================================================================== */
+@media (min-width: 1024px) {
+  .bottom-nav {
+    display: none; /* Hide bottom nav on desktop, sidebar takes over */
+  }
+
+  .desktop-nav-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-6);
+  }
+
+  .desktop-nav-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-medium);
+    font-size: var(--font-size-body);
+    transition: all var(--transition-fast);
+  }
+
+  .desktop-nav-item:hover {
+    background-color: var(--color-surface-secondary);
+    color: var(--color-text-primary);
+  }
+
+  .desktop-nav-item.is-active {
+    background-color: var(--color-primary-subtle);
+    color: var(--color-primary);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .desktop-nav-item svg {
+    width: 20px;
+    height: 20px;
+    stroke-width: 2;
+  }
+}

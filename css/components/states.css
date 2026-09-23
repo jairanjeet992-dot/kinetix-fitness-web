@@ -1,0 +1,62 @@
+/**
+ * STATES COMPONENT - FITNESS WEB
+ * Phase 0: Design Foundation
+ *
+ * Empty States and Error States with clear actionable hierarchy.
+ */
+
+.state-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-8) var(--space-4);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--color-border);
+}
+
+.state-icon-wrapper {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-4);
+  color: var(--color-text-muted);
+}
+
+.state-icon-wrapper svg {
+  width: 28px;
+  height: 28px;
+  stroke: currentColor;
+}
+
+.state-icon-wrapper.state-error-icon {
+  background-color: var(--color-error-subtle);
+  color: var(--color-error);
+}
+
+.state-title {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-1);
+}
+
+.state-description {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-secondary);
+  max-width: 320px;
+  margin-bottom: var(--space-5);
+}
+
+.state-actions {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: center;
+}

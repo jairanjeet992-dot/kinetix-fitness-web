@@ -1,0 +1,30 @@
+/**
+ * MAIN STYLESHEET AGGREGATOR - FITNESS WEB
+ * Phase 0: Design Foundation
+ *
+ * Imports all modular CSS layers in proper cascade order.
+ */
+
+/* 1. Design Tokens & Variables */
+@import "./tokens.css";
+
+/* 2. Base Reset & Accessibility Standards */
+@import "./base.css";
+
+/* 3. Typography Hierarchy */
+@import "./typography.css";
+
+/* 4. Layout & Responsive Architecture */
+@import "./layout.css";
+
+/* 5. Components Foundation */
+@import "./components/buttons.css";
+@import "./components/cards.css";
+@import "./components/badges-chips.css";
+@import "./components/navigation.css";
+@import "./components/controls.css";
+@import "./components/progress.css";
+@import "./components/feedback.css";
+@import "./components/overlays.css";
+@import "./components/states.css";
+@import "./components/views.css";

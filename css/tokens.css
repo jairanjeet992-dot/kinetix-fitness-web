@@ -1,0 +1,160 @@
+/**
+ * DESIGN SYSTEM TOKENS - FITNESS WEB
+ * Phase 0: Design Foundation
+ *
+ * Centralized CSS variables for colors, typography, spacing, radius,
+ * shadows, glassmorphism, transitions, and layout dimensions.
+ */
+
+:root {
+  /* ==========================================================================
+     Color System: Neutrals & Surfaces
+     ========================================================================== */
+  --color-background: #F7F7F5;
+  --color-surface: #FFFFFF;
+  --color-surface-secondary: #F0F0ED;
+  --color-surface-tertiary: #E8E8E4;
+
+  --color-text-primary: #111111;
+  --color-text-secondary: #6B6B6B;
+  --color-text-muted: #999999;
+  --color-text-inverse: #FFFFFF;
+
+  --color-border: #E8E8E8;
+  --color-border-subtle: #F0F0EE;
+  --color-border-strong: #D1D1CB;
+
+  /* ==========================================================================
+     Color System: Brand Accent & States
+     Energetic, athletic vermilion/coral - high clarity, restrained, premium
+     ========================================================================== */
+  --color-primary: #FF542E;
+  --color-primary-hover: #E63E18;
+  --color-primary-active: #CC3210;
+  --color-primary-subtle: #FFF1ED;
+  --color-primary-contrast: #FFFFFF;
+
+  --color-success: #12A150;
+  --color-success-subtle: #E8F7EE;
+  --color-warning: #D97706;
+  --color-warning-subtle: #FEF3C7;
+  --color-error: #DC2626;
+  --color-error-subtle: #FEE2E2;
+  --color-info: #2563EB;
+  --color-info-subtle: #EFF6FF;
+
+  /* ==========================================================================
+     Typography Tokens
+     ========================================================================== */
+  --font-family-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-family-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Font Sizes */
+  --font-size-display: clamp(2rem, 5vw, 2.5rem);       /* 32px - 40px */
+  --font-size-h1: clamp(1.625rem, 4vw, 2rem);          /* 26px - 32px */
+  --font-size-h2: clamp(1.25rem, 3vw, 1.5rem);         /* 20px - 24px */
+  --font-size-h3: 1.125rem;                            /* 18px */
+  --font-size-body-lg: 1.0625rem;                      /* 17px */
+  --font-size-body: 0.9375rem;                         /* 15px */
+  --font-size-body-sm: 0.8125rem;                      /* 13px */
+  --font-size-caption: 0.6875rem;                      /* 11px */
+  --font-size-button: 0.9375rem;                       /* 15px */
+  --font-size-label: 0.8125rem;                        /* 13px */
+
+  /* Line Heights */
+  --line-height-tight: 1.2;
+  --line-height-snug: 1.35;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.625;
+
+  /* Font Weights */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Letter Spacing */
+  --letter-spacing-tight: -0.025em;
+  --letter-spacing-normal: 0em;
+  --letter-spacing-wide: 0.025em;
+  --letter-spacing-uppercase: 0.06em;
+
+  /* ==========================================================================
+     Spacing Scale (Predictable 4-based scale)
+     ========================================================================== */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Safe Area variables for modern mobile browsers */
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+
+  /* ==========================================================================
+     Radius Scale
+     ========================================================================== */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-pill: 9999px;
+
+  /* ==========================================================================
+     Shadow / Elevation System (Subtle, crisp, Apple-like)
+     ========================================================================== */
+  --shadow-none: none;
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.07);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.09);
+  --shadow-float: 0 16px 40px -8px rgba(0, 0, 0, 0.14);
+
+  /* Focus ring */
+  --focus-ring: 0 0 0 3px rgba(255, 84, 46, 0.35);
+
+  /* ==========================================================================
+     Glassmorphism / Liquid Effect (Selective use only)
+     ========================================================================== */
+  --glass-bg: rgba(255, 255, 255, 0.82);
+  --glass-bg-subtle: rgba(247, 247, 245, 0.78);
+  --glass-border: rgba(255, 255, 255, 0.65);
+  --glass-backdrop-blur: blur(20px);
+  --glass-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+
+  /* ==========================================================================
+     Motion & Animation Tokens
+     ========================================================================== */
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-decelerate: cubic-bezier(0.0, 0.0, 0.2, 1);
+  --ease-accelerate: cubic-bezier(0.4, 0.0, 1, 1);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.15);
+
+  --transition-fast: 150ms var(--ease-standard);
+  --transition-normal: 250ms var(--ease-standard);
+  --transition-slow: 400ms var(--ease-standard);
+
+  /* ==========================================================================
+     Layout Dimensions
+     ========================================================================== */
+  --topbar-height: 56px;
+  --bottom-nav-height: 64px;
+  --container-max-mobile: 480px;
+  --container-max-content: 1120px;
+  --min-touch-target: 44px;
+  --z-index-base: 1;
+  --z-index-sticky: 100;
+  --z-index-fixed: 200;
+  --z-index-bottom-sheet: 800;
+  --z-index-modal: 900;
+  --z-index-toast: 1000;
+}
