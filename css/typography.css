@@ -96,3 +96,26 @@
 .text-secondary { color: var(--color-text-secondary); }
 .text-success { color: var(--color-success); }
 .text-error { color: var(--color-error); }
+
+/* ==========================================================================
+   Mobile Typography Optimization (< 640px)
+   Prevents oversized headings from consuming vertical space while preserving hierarchy
+   ========================================================================== */
+@media (max-width: 639px) {
+  .text-display {
+    font-size: 1.75rem;
+    line-height: 1.15;
+  }
+  .text-h1, h1 {
+    font-size: 1.375rem; /* 22px */
+    line-height: 1.25;
+  }
+  .text-h2, h2 {
+    font-size: 1.125rem; /* 18px */
+    line-height: 1.3;
+  }
+  .text-h3, h3 {
+    font-size: 1rem;     /* 16px */
+    line-height: 1.35;
+  }
+}

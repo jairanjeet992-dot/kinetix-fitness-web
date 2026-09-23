@@ -148,7 +148,8 @@
 .workout-card-meta {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
   color: var(--color-text-secondary);
   font-size: var(--font-size-body-sm);
   margin-top: auto;
@@ -198,6 +199,18 @@
   justify-content: center;
   flex-shrink: 0;
   overflow: hidden;
+}
+
+@media (max-width: 399px) {
+  .exercise-thumb {
+    width: 48px;
+    height: 48px;
+  }
+
+  .exercise-card {
+    padding: var(--space-2) var(--space-3);
+    gap: var(--space-2);
+  }
 }
 
 .exercise-thumb svg {

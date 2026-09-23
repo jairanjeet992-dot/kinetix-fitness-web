@@ -58,6 +58,32 @@
   overflow: hidden;
 }
 
+/* Stacked action buttons on mobile, row on tablet/desktop */
+.session-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.session-actions .btn {
+  width: 100%;
+  justify-content: center;
+  text-align: center;
+}
+
+@media (min-width: 640px) {
+  .session-actions {
+    flex-direction: row;
+    align-items: center;
+    width: auto;
+  }
+
+  .session-actions .btn {
+    width: auto;
+  }
+}
+
 .today-hero-card::after {
   content: "";
   position: absolute;
@@ -146,22 +172,84 @@
   pointer-events: none;
 }
 
+/* Horizontal category filter wrapper with subtle scroll affordance */
+.filter-scroll-wrapper {
+  position: relative;
+  width: 100%;
+  margin-bottom: var(--space-4);
+}
+
 .filter-pills-scroll {
   display: flex;
   gap: var(--space-2);
   overflow-x: auto;
   -ms-overflow-style: none;
-  scrollbar-width: none;
   padding-bottom: var(--space-2);
-  margin-bottom: var(--space-4);
+  margin-bottom: 0;
+  padding-right: var(--space-8);
+}
+
+@supports (scrollbar-width: none) {
+  .filter-pills-scroll {
+    scrollbar-width: none;
+  }
 }
 
 .filter-pills-scroll::-webkit-scrollbar {
   display: none;
 }
 
-.multi-filter-bar {
+/* Subtle right-edge scroll affordance gradient */
+.filter-scroll-wrapper::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: var(--space-2);
+  width: 36px;
+  background: linear-gradient(to right, rgba(247, 247, 245, 0), var(--color-background) 90%);
+  pointer-events: none;
+  transition: opacity var(--transition-fast);
+  border-top-right-radius: var(--radius-sm);
+  border-bottom-right-radius: var(--radius-sm);
+}
+
+.filter-scroll-wrapper.is-scrolled-end::after {
+  opacity: 0;
+}
+
+/* Compact Mobile Filter Bar (< 768px) */
+.mobile-filter-bar {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.mobile-filter-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background-color: var(--color-surface);
+  font-weight: var(--font-weight-medium);
+}
+
+.desktop-filter-bar {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .mobile-filter-bar {
+    display: none;
+  }
+
+  .desktop-filter-bar {
+    display: flex;
+  }
+}
+
+.multi-filter-bar {
   flex-wrap: wrap;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
@@ -183,14 +271,92 @@
   cursor: pointer;
 }
 
+/* Filter Bottom Sheet Modal Components */
+.filter-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.filter-sheet-title {
+  font-size: var(--font-size-body-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.filter-sheet-body {
+  padding: var(--space-4) var(--space-5);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-height: 60vh;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.filter-group-label {
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-uppercase);
+  color: var(--color-text-muted);
+}
+
+.filter-options-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.filter-sheet-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  gap: var(--space-3);
+}
+
+.filter-sheet-footer .btn {
+  flex: 1;
+  justify-content: center;
+}
+
 /* ==========================================================================
    Plans Screen: Weekly Calendar Strip
    ========================================================================== */
 .week-calendar-strip {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: var(--space-2);
   margin-bottom: var(--space-5);
+}
+
+@media (max-width: 480px) {
+  .week-calendar-strip {
+    gap: 4px;
+  }
+
+  .calendar-day-card {
+    padding: var(--space-2) 2px;
+  }
+
+  .calendar-day-name {
+    font-size: 10px;
+  }
+
+  .calendar-day-date {
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
 }
 
 .calendar-day-card {
@@ -321,6 +487,12 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   text-align: center;
+}
+
+@media (max-width: 480px) {
+  .profile-stat-box {
+    padding: var(--space-3) var(--space-2);
+  }
 }
 
 .profile-stat-val {

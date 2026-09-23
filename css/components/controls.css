@@ -55,7 +55,12 @@
   gap: var(--space-4);
   overflow-x: auto;
   -ms-overflow-style: none;
-  scrollbar-width: none;
+}
+
+@supports (scrollbar-width: none) {
+  .tabs-nav {
+    scrollbar-width: none;
+  }
 }
 
 .tabs-nav::-webkit-scrollbar {

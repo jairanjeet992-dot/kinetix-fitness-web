@@ -85,8 +85,8 @@ export function renderWorkoutDetail(container, workoutId) {
           </div>
 
           <!-- Start Workout Action -->
-          <div style="display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
-            <a href="#player/${workout.id}" class="btn btn-primary btn-lg" style="flex: 1; max-width: 280px;" id="btn-start-workout-detail">
+          <div class="session-actions">
+            <a href="#player/${workout.id}" class="btn btn-primary btn-lg" id="btn-start-workout-detail">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
               Start Workout
             </a>

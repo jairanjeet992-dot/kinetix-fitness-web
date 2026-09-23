@@ -65,8 +65,8 @@ export function renderHome(container) {
           </span>
         </div>
 
-        <div style="display: flex; gap: var(--space-3); flex-wrap: wrap;">
-          <a href="#player/${featured.id}" class="btn btn-primary btn-lg" style="flex: 1; max-width: 240px;">
+        <div class="session-actions">
+          <a href="#player/${featured.id}" class="btn btn-primary btn-lg">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
             Start Workout
           </a>
@@ -97,9 +97,9 @@ export function renderHome(container) {
             </div>
           </div>
 
-          <div style="display: flex; gap: var(--space-2);">
+          <div style="display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center;">
             ${WEEKLY_PLAN.days.map(d => `
-              <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 24px;">
                 <span class="text-caption" style="font-size: 10px;">${d.dayOfWeek}</span>
                 <span class="calendar-status-dot status-${d.status}"></span>
               </div>

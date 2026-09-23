@@ -14,6 +14,11 @@ export function renderWorkouts(container) {
 
   const categories = ['All', 'Strength', 'HIIT', 'Cardio', 'Mobility', 'Core', 'Full Body', 'Recovery'];
 
+  // Temporary staging state while bottom sheet is open
+  let tempDifficulty = activeDifficulty;
+  let tempDuration = activeDuration;
+  let tempEquipment = activeEquipment;
+
   function filterWorkouts() {
     return WORKOUTS.filter(w => {
       // Category match
@@ -21,8 +26,20 @@ export function renderWorkouts(container) {
       // Difficulty match
       if (activeDifficulty !== 'All' && w.difficulty !== activeDifficulty) return false;
       // Equipment match
-      if (activeEquipment !== 'All' && w.equipment !== activeEquipment) return false;
-      // Duration match
+      if (activeEquipment !== 'All') {
+        const eq = activeEquipment.toLowerCase();
+        const wEq = w.equipment.toLowerCase();
+        if (eq === 'bodyweight' && wEq !== 'bodyweight') return false;
+        if (eq.includes('dumbbell') && !wEq.includes('dumbbell')) return false;
+        if (eq === 'kettlebell' && !wEq.includes('kettlebell')) return false;
+        if (eq.includes('band') && !wEq.includes('band')) return false;
+      }
+      // Duration match (5-15, 15-30, 30-45, 45+)
+      if (activeDuration === '5-15' && (w.durationMin < 5 || w.durationMin > 15)) return false;
+      if (activeDuration === '15-30' && (w.durationMin <= 15 || w.durationMin > 30)) return false;
+      if (activeDuration === '30-45' && (w.durationMin <= 30 || w.durationMin > 45)) return false;
+      if (activeDuration === '45+' && w.durationMin <= 45) return false;
+      // Legacy durations (<20, 20-30, 30+)
       if (activeDuration === '<20' && w.durationMin >= 20) return false;
       if (activeDuration === '20-30' && (w.durationMin < 20 || w.durationMin > 30)) return false;
       if (activeDuration === '30+' && w.durationMin < 30) return false;
@@ -138,6 +155,22 @@ export function renderWorkouts(container) {
     });
   }
 
+  function getActiveFilterCount() {
+    let count = 0;
+    if (activeDifficulty !== 'All') count++;
+    if (activeDuration !== 'All') count++;
+    if (activeEquipment !== 'All') count++;
+    return count;
+  }
+
+  function updateFilterTriggerButton() {
+    const triggerText = container.querySelector('#mobile-filter-btn-text');
+    const count = getActiveFilterCount();
+    if (triggerText) {
+      triggerText.textContent = count > 0 ? `Filters • ${count} selected` : 'Filters';
+    }
+  }
+
   function updateFilterSelects() {
     const diffSelect = container.querySelector('#filter-select-difficulty');
     const durSelect = container.querySelector('#filter-select-duration');
@@ -145,6 +178,50 @@ export function renderWorkouts(container) {
     if (diffSelect) diffSelect.value = activeDifficulty;
     if (durSelect) durSelect.value = activeDuration;
     if (eqSelect) eqSelect.value = activeEquipment;
+    updateFilterTriggerButton();
+  }
+
+  function updateSheetChips() {
+    container.querySelectorAll('[data-sheet-filter="difficulty"]').forEach(btn => {
+      btn.classList.toggle('is-active', btn.getAttribute('data-value') === tempDifficulty);
+    });
+    container.querySelectorAll('[data-sheet-filter="duration"]').forEach(btn => {
+      btn.classList.toggle('is-active', btn.getAttribute('data-value') === tempDuration);
+    });
+    container.querySelectorAll('[data-sheet-filter="equipment"]').forEach(btn => {
+      btn.classList.toggle('is-active', btn.getAttribute('data-value') === tempEquipment);
+    });
+  }
+
+  function openFilterSheet() {
+    tempDifficulty = activeDifficulty;
+    tempDuration = activeDuration;
+    tempEquipment = activeEquipment;
+    updateSheetChips();
+
+    const sheet = container.querySelector('#workouts-filter-sheet');
+    const backdrop = document.getElementById('modal-backdrop');
+    if (sheet) {
+      sheet.classList.add('is-active');
+      sheet.setAttribute('aria-hidden', 'false');
+    }
+    if (backdrop) {
+      backdrop.classList.add('is-active');
+      backdrop.setAttribute('aria-hidden', 'false');
+    }
+  }
+
+  function closeFilterSheet() {
+    const sheet = container.querySelector('#workouts-filter-sheet');
+    const backdrop = document.getElementById('modal-backdrop');
+    if (sheet) {
+      sheet.classList.remove('is-active');
+      sheet.setAttribute('aria-hidden', 'true');
+    }
+    if (backdrop) {
+      backdrop.classList.remove('is-active');
+      backdrop.setAttribute('aria-hidden', 'true');
+    }
   }
 
   const featured = getFeaturedWorkout();
@@ -175,17 +252,32 @@ export function renderWorkouts(container) {
         >
       </div>
 
-      <!-- Category Filter Pills (Horizontal Scroll) -->
-      <div class="filter-pills-scroll" role="toolbar" aria-label="Workout Categories">
-        ${categories.map(c => `
-          <button class="chip ${c === 'All' ? 'is-active' : ''}" data-category-pill="${c}" aria-pressed="${c === 'All'}">
-            ${c}
-          </button>
-        `).join('')}
+      <!-- Category Filter Pills (Horizontal Scroll with subtle visual scroll affordance) -->
+      <div class="filter-scroll-wrapper" id="category-scroll-wrapper">
+        <div class="filter-pills-scroll" id="category-pills-scroll" role="toolbar" aria-label="Workout Categories">
+          ${categories.map(c => `
+            <button class="chip ${c === 'All' ? 'is-active' : ''}" data-category-pill="${c}" aria-pressed="${c === 'All'}">
+              ${c}
+            </button>
+          `).join('')}
+        </div>
       </div>
 
-      <!-- Multi-Filter Toolbar -->
-      <div class="multi-filter-bar">
+      <!-- Compact Mobile Filter Bar (< 768px) -->
+      <div class="mobile-filter-bar">
+        <button class="btn btn-outline btn-sm mobile-filter-trigger" id="btn-open-filter-sheet" aria-haspopup="dialog" aria-expanded="false">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+          <span id="mobile-filter-btn-text">Filters</span>
+        </button>
+
+        <a href="#exercises" class="btn btn-ghost btn-sm">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
+          Exercise Directory &rarr;
+        </a>
+      </div>
+
+      <!-- Expanded Desktop Multi-Filter Toolbar (>= 768px) -->
+      <div class="desktop-filter-bar multi-filter-bar">
         <div style="display: flex; align-items: center; gap: var(--space-2);">
           <span class="text-caption text-muted" style="font-weight: 600;">FILTERS:</span>
         </div>
@@ -199,16 +291,18 @@ export function renderWorkouts(container) {
 
         <select id="filter-select-duration" class="filter-select" aria-label="Filter by duration">
           <option value="All">Duration: Any</option>
-          <option value="<20">&lt; 20 Min</option>
-          <option value="20-30">20–30 Min</option>
-          <option value="30+">30+ Min</option>
+          <option value="5-15">5–15 min</option>
+          <option value="15-30">15–30 min</option>
+          <option value="30-45">30–45 min</option>
+          <option value="45+">45+ min</option>
         </select>
 
         <select id="filter-select-equipment" class="filter-select" aria-label="Filter by equipment">
           <option value="All">Equipment: All</option>
-          <option value="Bodyweight">Bodyweight Only</option>
-          <option value="Dumbbells">Dumbbells</option>
+          <option value="Bodyweight">Bodyweight</option>
+          <option value="Dumbbell">Dumbbell</option>
           <option value="Kettlebell">Kettlebell</option>
+          <option value="Resistance Band">Resistance Band</option>
         </select>
 
         <a href="#exercises" class="btn btn-ghost btn-sm" style="margin-left: auto;">
@@ -237,19 +331,158 @@ export function renderWorkouts(container) {
 
       <!-- Results Grid -->
       <div class="grid grid-cols-1 grid-tablet-2 grid-desktop-3 gap-4" id="workouts-cards-grid"></div>
+
+      <!-- Mobile Filter Bottom Sheet Dialog -->
+      <div id="workouts-filter-sheet" class="bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="filter-sheet-title" aria-hidden="true">
+        <div class="bottom-sheet-handle"></div>
+        <div class="filter-sheet-header">
+          <h2 class="filter-sheet-title" id="filter-sheet-title">Filter Workouts</h2>
+          <button class="btn btn-ghost btn-icon btn-sm" id="btn-close-filter-sheet" aria-label="Close filters">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+
+        <div class="filter-sheet-body">
+          <!-- Difficulty -->
+          <div class="filter-group">
+            <span class="filter-group-label">Difficulty</span>
+            <div class="filter-options-grid" id="sheet-options-difficulty">
+              ${['All', 'Beginner', 'Intermediate', 'Advanced'].map(d => `
+                <button type="button" class="chip ${activeDifficulty === d ? 'is-active' : ''}" data-sheet-filter="difficulty" data-value="${d}">
+                  ${d}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Duration -->
+          <div class="filter-group">
+            <span class="filter-group-label">Duration</span>
+            <div class="filter-options-grid" id="sheet-options-duration">
+              ${[
+                { label: 'Any', val: 'All' },
+                { label: '5–15 min', val: '5-15' },
+                { label: '15–30 min', val: '15-30' },
+                { label: '30–45 min', val: '30-45' },
+                { label: '45+ min', val: '45+' }
+              ].map(item => `
+                <button type="button" class="chip ${activeDuration === item.val ? 'is-active' : ''}" data-sheet-filter="duration" data-value="${item.val}">
+                  ${item.label}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Equipment -->
+          <div class="filter-group">
+            <span class="filter-group-label">Equipment</span>
+            <div class="filter-options-grid" id="sheet-options-equipment">
+              ${[
+                { label: 'All', val: 'All' },
+                { label: 'Bodyweight', val: 'Bodyweight' },
+                { label: 'Dumbbell', val: 'Dumbbell' },
+                { label: 'Kettlebell', val: 'Kettlebell' },
+                { label: 'Resistance Band', val: 'Resistance Band' }
+              ].map(item => `
+                <button type="button" class="chip ${activeEquipment === item.val ? 'is-active' : ''}" data-sheet-filter="equipment" data-value="${item.val}">
+                  ${item.label}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+
+        <div class="filter-sheet-footer">
+          <button type="button" class="btn btn-secondary" id="btn-sheet-reset">Reset</button>
+          <button type="button" class="btn btn-primary" id="btn-sheet-apply">Apply</button>
+        </div>
+      </div>
     </div>
   `;
 
+  // Horizontal category scroll affordance check
+  const scrollTrack = container.querySelector('#category-pills-scroll');
+  const scrollWrapper = container.querySelector('#category-scroll-wrapper');
+  if (scrollTrack && scrollWrapper) {
+    function checkScrollAffordance() {
+      const isAtEnd = scrollTrack.scrollLeft + scrollTrack.clientWidth >= scrollTrack.scrollWidth - 8;
+      scrollWrapper.classList.toggle('is-scrolled-end', isAtEnd);
+    }
+    scrollTrack.addEventListener('scroll', checkScrollAffordance, { passive: true });
+    setTimeout(checkScrollAffordance, 50);
+  }
+
+  // Mobile Bottom Sheet Event Handlers
+  const openSheetBtn = container.querySelector('#btn-open-filter-sheet');
+  const closeSheetBtn = container.querySelector('#btn-close-filter-sheet');
+  const backdrop = document.getElementById('modal-backdrop');
+  const sheetResetBtn = container.querySelector('#btn-sheet-reset');
+  const sheetApplyBtn = container.querySelector('#btn-sheet-apply');
+
+  if (openSheetBtn) {
+    openSheetBtn.addEventListener('click', openFilterSheet);
+  }
+  if (closeSheetBtn) {
+    closeSheetBtn.addEventListener('click', closeFilterSheet);
+  }
+  if (backdrop) {
+    backdrop.addEventListener('click', closeFilterSheet);
+  }
+
+  // Keydown Escape handler for accessibility
+  function handleKeyDown(e) {
+    if (e.key === 'Escape') {
+      closeFilterSheet();
+    }
+  }
+  window.addEventListener('keydown', handleKeyDown);
+
+  // Sheet Option Chips
+  container.querySelectorAll('[data-sheet-filter]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const type = chip.getAttribute('data-sheet-filter');
+      const val = chip.getAttribute('data-value');
+      if (type === 'difficulty') tempDifficulty = val;
+      if (type === 'duration') tempDuration = val;
+      if (type === 'equipment') tempEquipment = val;
+      updateSheetChips();
+    });
+  });
+
+  // Sheet Reset
+  if (sheetResetBtn) {
+    sheetResetBtn.addEventListener('click', () => {
+      tempDifficulty = 'All';
+      tempDuration = 'All';
+      tempEquipment = 'All';
+      updateSheetChips();
+    });
+  }
+
+  // Sheet Apply
+  if (sheetApplyBtn) {
+    sheetApplyBtn.addEventListener('click', () => {
+      activeDifficulty = tempDifficulty;
+      activeDuration = tempDuration;
+      activeEquipment = tempEquipment;
+      updateFilterSelects();
+      closeFilterSheet();
+      renderList();
+    });
+  }
+
   // Attach search listener
   const searchInput = container.querySelector('#workouts-search-input');
-  searchInput.addEventListener('input', (e) => {
-    searchQuery = e.target.value;
-    const spotlight = container.querySelector('#workouts-featured-spotlight');
-    if (spotlight) {
-      spotlight.style.display = searchQuery.trim() ? 'none' : 'block';
-    }
-    renderList();
-  });
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      searchQuery = e.target.value;
+      const spotlight = container.querySelector('#workouts-featured-spotlight');
+      if (spotlight) {
+        spotlight.style.display = searchQuery.trim() ? 'none' : 'block';
+      }
+      renderList();
+    });
+  }
 
   // Attach category pill clicks
   container.querySelectorAll('[data-category-pill]').forEach(pill => {
@@ -262,22 +495,31 @@ export function renderWorkouts(container) {
 
   // Attach dropdown filters
   const diffSelect = container.querySelector('#filter-select-difficulty');
-  diffSelect.addEventListener('change', (e) => {
-    activeDifficulty = e.target.value;
-    renderList();
-  });
+  if (diffSelect) {
+    diffSelect.addEventListener('change', (e) => {
+      activeDifficulty = e.target.value;
+      updateFilterTriggerButton();
+      renderList();
+    });
+  }
 
   const durSelect = container.querySelector('#filter-select-duration');
-  durSelect.addEventListener('change', (e) => {
-    activeDuration = e.target.value;
-    renderList();
-  });
+  if (durSelect) {
+    durSelect.addEventListener('change', (e) => {
+      activeDuration = e.target.value;
+      updateFilterTriggerButton();
+      renderList();
+    });
+  }
 
   const eqSelect = container.querySelector('#filter-select-equipment');
-  eqSelect.addEventListener('change', (e) => {
-    activeEquipment = e.target.value;
-    renderList();
-  });
+  if (eqSelect) {
+    eqSelect.addEventListener('change', (e) => {
+      activeEquipment = e.target.value;
+      updateFilterTriggerButton();
+      renderList();
+    });
+  }
 
   // Attach featured card click
   const featuredCard = container.querySelector('#featured-workout-card');
@@ -288,5 +530,6 @@ export function renderWorkouts(container) {
   }
 
   // Initial render
+  updateFilterTriggerButton();
   renderList();
 }

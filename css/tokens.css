@@ -49,15 +49,15 @@
   --font-family-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-family-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
-  /* Font Sizes */
-  --font-size-display: clamp(2rem, 5vw, 2.5rem);       /* 32px - 40px */
-  --font-size-h1: clamp(1.625rem, 4vw, 2rem);          /* 26px - 32px */
-  --font-size-h2: clamp(1.25rem, 3vw, 1.5rem);         /* 20px - 24px */
-  --font-size-h3: 1.125rem;                            /* 18px */
-  --font-size-body-lg: 1.0625rem;                      /* 17px */
-  --font-size-body: 0.9375rem;                         /* 15px */
-  --font-size-body-sm: 0.8125rem;                      /* 13px */
-  --font-size-caption: 0.6875rem;                      /* 11px */
+  /* Font Sizes - Calibrated for mobile clarity without oversized vertical bloat */
+  --font-size-display: clamp(1.75rem, 4.5vw, 2.25rem);       /* 28px - 36px */
+  --font-size-h1: clamp(1.375rem, 3.5vw, 1.875rem);          /* 22px - 30px */
+  --font-size-h2: clamp(1.125rem, 2.5vw, 1.375rem);         /* 18px - 22px */
+  --font-size-h3: 1.0625rem;                                 /* 17px */
+  --font-size-body-lg: 1.0625rem;                            /* 17px */
+  --font-size-body: 0.9375rem;                               /* 15px */
+  --font-size-body-sm: 0.8125rem;                            /* 13px */
+  --font-size-caption: 0.6875rem;                            /* 11px */
   --font-size-button: 0.9375rem;                       /* 15px */
   --font-size-label: 0.8125rem;                        /* 13px */
 
@@ -143,11 +143,11 @@
   --transition-normal: 250ms var(--ease-standard);
   --transition-slow: 400ms var(--ease-standard);
 
-  /* ==========================================================================
-     Layout Dimensions
-     ========================================================================== */
+  /* Layout Dimensions & Global Clearance */
   --topbar-height: 56px;
   --bottom-nav-height: 64px;
+  /* Reusable global clearance for bottom-nav + safe-area + generous breathing room */
+  --bottom-nav-total-clearance: calc(var(--bottom-nav-height) + var(--safe-area-bottom) + var(--space-8));
   --container-max-mobile: 480px;
   --container-max-content: 1120px;
   --min-touch-target: 44px;
