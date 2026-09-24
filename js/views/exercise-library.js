@@ -15,6 +15,7 @@ import {
 } from '../data/taxonomy.js';
 import { getExercisePerformanceHistory } from '../analytics/performance-tracker.js';
 import { showExerciseDetailModal } from '../components/exercise-media.js';
+import { renderExerciseVisualThumbnail } from '../components/exercise-visual.js';
 import { resolveExerciseWithCoachMedia } from '../data/coach-system.js';
 import { renderExerciseVisualThumbnail } from '../components/exercise-visual.js';
 
