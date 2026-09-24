@@ -6,7 +6,7 @@
  * multi-dimensional search & filtering, and rich modal inspection.
  */
 
-import { EXERCISES, getExercisePlaceholderSvg, getExerciseById } from '../data/exercises.js';
+import { EXERCISES, getExerciseById } from '../data/exercises.js';
 import {
   EQUIPMENT_LABELS,
   CATEGORY_LABELS,
