@@ -100,10 +100,12 @@ export function sanitizePerformanceRecord(raw) {
   const rawSetNum = Number(raw.setNumber);
   const setNumber = Number.isInteger(rawSetNum) && rawSetNum >= 1 ? rawSetNum : 1;
 
-  // Timestamp
-  const completedAt = (raw.completedAt && !isNaN(new Date(raw.completedAt).getTime()))
-    ? new Date(raw.completedAt).toISOString()
-    : new Date().toISOString();
+  // Timestamps validation: MUST have valid completedAt timestamp (never fabricate with now)
+  const rawCompletedAt = raw.completedAt;
+  if (!rawCompletedAt || typeof rawCompletedAt !== 'string' || rawCompletedAt.trim().length === 0) return null;
+  const completedTime = new Date(rawCompletedAt).getTime();
+  if (isNaN(completedTime) || completedTime <= 0) return null;
+  const completedAt = new Date(rawCompletedAt).toISOString();
 
   // Unit: 'kg' or 'lb'
   const unit = String(raw.unit || 'kg').toLowerCase().trim() === 'lb' ? 'lb' : 'kg';
@@ -268,17 +270,25 @@ export function savePerformanceRecords(recordsArray = []) {
   if (!Array.isArray(recordsArray) || recordsArray.length === 0) return true;
   try {
     if (typeof localStorage === 'undefined') return false;
-    const current = getPerformanceRecords();
-    const map = new Map(current.map(r => [r.id, r]));
+    const records = getPerformanceRecords();
 
     recordsArray.forEach(raw => {
       const sanitized = sanitizePerformanceRecord(raw);
-      if (sanitized) {
-        map.set(sanitized.id, sanitized);
+      if (!sanitized) return;
+
+      const existingIdx = records.findIndex(r =>
+        r.id === sanitized.id ||
+        (r.sessionId === sanitized.sessionId && r.exerciseId === sanitized.exerciseId && r.setNumber === sanitized.setNumber)
+      );
+
+      if (existingIdx >= 0) {
+        records[existingIdx] = sanitized;
+      } else {
+        records.push(sanitized);
       }
     });
 
-    localStorage.setItem(STORAGE_KEY_PERFORMANCE, JSON.stringify(Array.from(map.values())));
+    localStorage.setItem(STORAGE_KEY_PERFORMANCE, JSON.stringify(records));
     return true;
   } catch (err) {
     console.warn('Failed to batch persist performance records:', err);

@@ -13,7 +13,7 @@
 
 import { getExerciseById } from '../data/exercises.js';
 import { calculateSessionTrainingLoad } from '../analytics/training-load.js';
-import { savePerformanceRecord, createPerformanceRecord } from '../analytics/performance-tracker.js';
+import { savePerformanceRecord, createPerformanceRecord, sanitizePerformanceRecord } from '../analytics/performance-tracker.js';
 
 export const STORAGE_KEY_SESSION = 'kinetix_active_workout_session';
 export const STORAGE_KEY_HISTORY = 'kinetix_workout_history';
@@ -362,7 +362,7 @@ export function completeSet(session, workout, setLogData = null) {
       durationSeconds: setLogData.durationSeconds !== undefined ? setLogData.durationSeconds : (setLogData.duration !== undefined ? setLogData.duration : null),
       distanceMeters: setLogData.distanceMeters !== undefined ? setLogData.distanceMeters : (setLogData.distance !== undefined ? setLogData.distance : null),
       isCompleted: setLogData.completed !== false && setLogData.isCompleted !== false,
-      completedAt: setLogData.completedAt || new Date().toISOString()
+      completedAt: (typeof setLogData.completedAt === 'string' && setLogData.completedAt.trim().length > 0) ? setLogData.completedAt.trim() : null
     });
 
     if (perfRecord) {
@@ -763,7 +763,9 @@ export function sanitizeHistoryRecord(raw) {
 
   // Phase 5 Performance Tracking
   if (Array.isArray(raw.performanceLogs)) {
-    sanitized.performanceLogs = raw.performanceLogs;
+    sanitized.performanceLogs = raw.performanceLogs
+      .map(p => sanitizePerformanceRecord(p))
+      .filter(Boolean);
   }
   if (Number.isFinite(Number(raw.totalVolumeKg)) && Number(raw.totalVolumeKg) >= 0) {
     sanitized.totalVolumeKg = Math.round(Number(raw.totalVolumeKg) * 10) / 10;
