@@ -65,6 +65,12 @@ const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
  */
 export function toDateString(d) {
   if (!d) return '';
+  if (typeof d === 'string') {
+    const trimmed = d.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+  }
   const date = d instanceof Date ? d : new Date(d);
   if (isNaN(date.getTime())) return '';
   const y = date.getUTCFullYear();
@@ -469,8 +475,10 @@ export function generateTrainingPlan(rawProfile = {}, options = {}) {
 
   const planId = `plan-${goal.slice(0, 3)}-${trainingFrequency}d-v${version}-s${seed}`;
 
-  // Evaluate recent recovery state from history if present
-  const recentHistory = Array.isArray(options.historyRecords) ? options.historyRecords : [];
+  // Evaluate recent recovery state from history if present (bounded to 50 most recent records)
+  const recentHistory = Array.isArray(options.historyRecords)
+    ? options.historyRecords.slice(0, 50)
+    : [];
   const recoveryReport = recentHistory.length > 0 ? analyzeRecovery(recentHistory, safeRefDate) : null;
 
   // Build weekly schedule weeks

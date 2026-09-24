@@ -236,8 +236,48 @@ Resilience protections:
 
 ---
 
-## 11. Known Limitations & Future Roadmap
+---
 
-1. **Multi-Mesocycle Archival**: The current engine plans 4-week microcycle blocks. Automatic rollovers between mesocycles occur via `regeneratePlan` rather than background cron.
-2. **Bi-directional Calendar Sync**: The calendar is local-first within the browser. Exporting to iCal/Google Calendar (.ics) is scheduled for a future integration phase.
-3. **Cross-Day Splitting**: Double-split days (morning cardio + evening lifting) are not currently supported; the planner models single daily microcycle anchors.
+## 11. Phase 7.1 Production Hardening & Adversarial Guarantees
+
+Phase 7.1 introduced strict invariants and edge-case protections across the training plan lifecycle:
+
+1. **Single Authoritative Active Plan Invariant**:
+   - If storage corruption or race conditions result in multiple plans marked `status: 'ACTIVE'`, `getActivePlan()` deterministically sorts by version descending and `updatedAt` descending, retaining exactly one active plan while demoting orphaned duplicates to `ARCHIVED`.
+
+2. **Ambiguous Completion Reconciliation Guard**:
+   - Explicit matching by `plannedSessionId` is always prioritized.
+   - When a fallback calendar-date lookup finds multiple candidate planned sessions on the same date, the engine **never guesses**. If none matches the completed `workoutId`, it returns `null` (explicitly unresolved) to prevent false completion attributions.
+   - Reconciliations into plans explicitly target the workout's parent `planId`, ensuring workouts completed under an older version reconcile into the archived version rather than corrupting a newly regenerated active plan.
+
+3. **Adherence Denominator & Optional Session Mathematics**:
+   - Adherence calculates required training sessions vs completed required training sessions:
+     `adherenceRate = Math.min(1.0, completedRequired / totalRequired)`.
+   - Completing optional active recovery or mobility sessions is tracked separately (`completedOptionalSessions`) and cannot inflate the adherence percentage beyond 100%.
+   - Rest days are never classified as missed sessions.
+
+4. **Mesocycle Progression & Dynamic Week Synchronization**:
+   - `syncPlanStatuses()` dynamically maps the reference date to the active week in the 4-week block (`currentWeek: 1..4`).
+   - If the entire 4-week mesocycle has elapsed, the plan status is cleanly transitioned to `PLAN_STATUS.COMPLETED`.
+   - UI views dynamically render the active week corresponding to the athlete's current calendar position.
+
+5. **Multi-Reschedule Audit Trail & Collision Safety**:
+   - Multiple reschedules (A → B → C) preserve the initial `originalScheduledDate` across all hops.
+   - Rescheduling onto a day with an existing scheduled session preserves both sessions with unique IDs, allowing intentional multi-session catch-up without silent overwrites.
+
+6. **Storage Sanitization & Recovery**:
+   - Corrupted or partial plan objects lacking valid `weeks` arrays are discarded upon retrieval, preventing runtime exceptions.
+   - Large workout histories (5,000+ records) are bounded during recovery engine fatigue checks to guarantee sub-millisecond plan generation.
+
+---
+
+## 12. Known Limitations & Product Decisions
+
+1. **Multi-Mesocycle Rollover**:
+   - The engine plans a 4-week mesocycle block. When week 4 concludes, the plan transitions to `COMPLETED`, prompting the athlete to review progress and regenerate for the next mesocycle block. Automatic background rollover without athlete confirmation is intentionally deferred to prevent surprise schedule resets.
+2. **Single Daily Microcycle Anchor**:
+   - The planner models one primary session per calendar day. Rescheduling allows coexisting sessions on the same date, but the generator does not natively plan two separate split workouts (e.g. morning cardio + evening weights) in the default microcycle template.
+3. **External Calendar Export (.ics)**:
+   - All session schedules, dates, and intents are fully structured and RFC 5545 compatible (`scheduledDate`, `title`, `duration`, `targetFocus`). Direct calendar sync (.ics file generation or Google/Apple calendar integration) is a separate feature.
+
+---

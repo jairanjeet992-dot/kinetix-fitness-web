@@ -29,7 +29,10 @@ export function renderPlans(container) {
   const adherence = computePlanAdherence(plan);
   const todayStr = toDateString(new Date());
 
-  const currentWeek = (plan.weeks && plan.weeks[0]) || { sessions: [] };
+  const currentWeek = (plan.weeks || []).find(w => todayStr >= w.startDate && todayStr <= w.endDate)
+    || (plan.weeks || []).find(w => w.weekNumber === plan.currentWeek)
+    || (plan.weeks && plan.weeks[0])
+    || { sessions: [] };
   const sessions = currentWeek.sessions || [];
 
   // Default selection to today's session, or first session

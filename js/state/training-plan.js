@@ -42,7 +42,9 @@ export function getStoredPlans() {
     const raw = localStorage.getItem(STORAGE_KEY_PLANS);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter(p => p && typeof p === 'object' && p.planId) : [];
+    return Array.isArray(parsed)
+      ? parsed.filter(p => p && typeof p === 'object' && p.planId && Array.isArray(p.weeks))
+      : [];
   } catch (err) {
     console.warn('Failed to parse training plans from localStorage. Safely recovering with empty state:', err);
     return [];
@@ -168,6 +170,26 @@ export function syncPlanStatuses(plan, referenceDate = new Date()) {
     });
   });
 
+  // Synchronize currentWeek and mesocycle completion dynamically based on refDateStr
+  if (Array.isArray(plan.weeks) && plan.weeks.length > 0) {
+    const activeWeekIndex = plan.weeks.findIndex(w => refDateStr >= w.startDate && refDateStr <= w.endDate);
+    if (activeWeekIndex >= 0) {
+      if (plan.currentWeek !== plan.weeks[activeWeekIndex].weekNumber) {
+        plan.currentWeek = plan.weeks[activeWeekIndex].weekNumber;
+        hasChanges = true;
+      }
+    } else if (refDateStr > (plan.weeks[plan.weeks.length - 1]?.endDate || '')) {
+      if (plan.currentWeek !== plan.weeks.length) {
+        plan.currentWeek = plan.weeks.length;
+        hasChanges = true;
+      }
+      if (plan.status === PLAN_STATUS.ACTIVE) {
+        plan.status = PLAN_STATUS.COMPLETED;
+        hasChanges = true;
+      }
+    }
+  }
+
   if (hasChanges) {
     plan.updatedAt = new Date().toISOString();
   }
@@ -184,7 +206,26 @@ export function syncPlanStatuses(plan, referenceDate = new Date()) {
  */
 export function getActivePlan(referenceDate = new Date(), profileOverride = null) {
   const plans = getStoredPlans();
-  let active = plans.find(p => p.status === PLAN_STATUS.ACTIVE);
+  const activePlans = plans.filter(p => p.status === PLAN_STATUS.ACTIVE);
+  let active = null;
+
+  if (activePlans.length > 1) {
+    // Active plan invariant: deterministically resolve to single authoritative active plan
+    activePlans.sort((a, b) => {
+      const verA = Number(a.planVersion || a.version) || 1;
+      const verB = Number(b.planVersion || b.version) || 1;
+      if (verB !== verA) return verB - verA;
+      return new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime();
+    });
+    active = activePlans[0];
+    for (let i = 1; i < activePlans.length; i++) {
+      activePlans[i].status = PLAN_STATUS.ARCHIVED;
+      activePlans[i].updatedAt = new Date().toISOString();
+    }
+    saveStoredPlans(plans);
+  } else if (activePlans.length === 1) {
+    active = activePlans[0];
+  }
 
   if (!active) {
     // Generate initial plan using current profile
@@ -321,6 +362,11 @@ export function reschedulePlannedSession(plannedSessionId, newDate, plan = null)
   const session = getPlannedSession(plannedSessionId, targetPlan);
   if (!session) return null;
 
+  // Cannot reschedule an already completed session
+  if (session.status === SESSION_STATUS.COMPLETED) {
+    return null;
+  }
+
   const newDateStr = toDateString(newDate);
   if (!newDateStr) return null;
 
@@ -370,7 +416,16 @@ export function reconcileCompletedSession(completedSession, plan = null) {
     return null;
   }
 
-  const targetPlan = plan || getActivePlan();
+  let targetPlan = plan;
+  if (!targetPlan) {
+    if (completedSession.planId) {
+      targetPlan = getPlanById(completedSession.planId);
+    }
+    if (!targetPlan) {
+      targetPlan = getActivePlan();
+    }
+  }
+
   if (!targetPlan || !Array.isArray(targetPlan.weeks)) return null;
 
   let sessionToMatch = null;
@@ -380,23 +435,47 @@ export function reconcileCompletedSession(completedSession, plan = null) {
     sessionToMatch = getPlannedSession(completedSession.plannedSessionId, targetPlan);
   }
 
-  // 2. Fallback match by calendar date & workout target
-  if (!sessionToMatch) {
+  // 2. Fallback match by calendar date & workout target (ONLY permitted for ACTIVE plans)
+  if (!sessionToMatch && targetPlan.status === PLAN_STATUS.ACTIVE) {
     const completedDateStr = toDateString(completedSession.completedAt);
+    const candidates = [];
     for (const week of targetPlan.weeks) {
-      const match = (week.sessions || []).find(s =>
-        s.scheduledDate === completedDateStr &&
-        s.sessionType === SESSION_TYPE.TRAINING &&
-        (s.status === SESSION_STATUS.READY || s.status === SESSION_STATUS.PLANNED || s.status === SESSION_STATUS.MISSED)
-      );
-      if (match) {
-        sessionToMatch = match;
-        break;
+      for (const s of (week.sessions || [])) {
+        if (
+          s.scheduledDate === completedDateStr &&
+          s.sessionType === SESSION_TYPE.TRAINING &&
+          (s.status === SESSION_STATUS.READY || s.status === SESSION_STATUS.PLANNED || s.status === SESSION_STATUS.MISSED)
+        ) {
+          candidates.push(s);
+        }
+      }
+    }
+
+    if (candidates.length === 1) {
+      sessionToMatch = candidates[0];
+    } else if (candidates.length > 1) {
+      // Ambiguous: multiple candidates on same calendar date without direct plannedSessionId
+      const workoutMatch = candidates.find(c => c.workoutId && c.workoutId === completedSession.workoutId);
+      if (workoutMatch) {
+        sessionToMatch = workoutMatch;
+      } else {
+        // Do not guess. Return unresolved null to prevent erroneous attribution.
+        console.warn(`Ambiguous reconciliation: ${candidates.length} candidates on ${completedDateStr}; reconciliation unresolved.`);
+        return null;
       }
     }
   }
 
   if (sessionToMatch) {
+    // If already completed by another workout, never overwrite
+    if (
+      sessionToMatch.status === SESSION_STATUS.COMPLETED &&
+      sessionToMatch.completedSessionId &&
+      sessionToMatch.completedSessionId !== completedSession.sessionId
+    ) {
+      return null;
+    }
+
     sessionToMatch.status = SESSION_STATUS.COMPLETED;
     sessionToMatch.completedSessionId = completedSession.sessionId;
     sessionToMatch.completedAt = completedSession.completedAt;
@@ -435,8 +514,9 @@ export function computePlanAdherence(plan, referenceDate = new Date()) {
   const refDateObj = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
   const refDateStr = toDateString(isNaN(refDateObj.getTime()) ? new Date() : refDateObj);
 
-  let totalTrainingPastOrToday = 0;
-  let completed = 0;
+  let totalRequiredPastOrToday = 0;
+  let completedRequired = 0;
+  let completedOptional = 0;
   let missed = 0;
   let skipped = 0;
   let optional = 0;
@@ -444,16 +524,16 @@ export function computePlanAdherence(plan, referenceDate = new Date()) {
 
   plan.weeks.forEach(week => {
     (week.sessions || []).forEach(session => {
-      if (session.isOptional) {
-        optional++;
-        if (session.status === SESSION_STATUS.COMPLETED) {
-          completed++;
-        }
-        return;
+      if (session.sessionType === SESSION_TYPE.REST) {
+        return; // Rest days do not count as training adherence targets
       }
 
-      if (session.sessionType === SESSION_TYPE.REST || session.sessionType === SESSION_TYPE.RECOVERY) {
-        return; // Rest days do not count as training adherence targets
+      if (session.isOptional || session.sessionType === SESSION_TYPE.RECOVERY) {
+        optional++;
+        if (session.status === SESSION_STATUS.COMPLETED) {
+          completedOptional++;
+        }
+        return;
       }
 
       if (session.scheduledDate > refDateStr && session.status !== SESSION_STATUS.COMPLETED) {
@@ -461,10 +541,10 @@ export function computePlanAdherence(plan, referenceDate = new Date()) {
         return; // Future sessions are not penalized
       }
 
-      totalTrainingPastOrToday++;
+      totalRequiredPastOrToday++;
 
       if (session.status === SESSION_STATUS.COMPLETED) {
-        completed++;
+        completedRequired++;
       } else if (session.status === SESSION_STATUS.MISSED) {
         missed++;
       } else if (session.status === SESSION_STATUS.SKIPPED) {
@@ -473,13 +553,16 @@ export function computePlanAdherence(plan, referenceDate = new Date()) {
     });
   });
 
-  const adherenceRate = totalTrainingPastOrToday > 0
-    ? Math.round((completed / totalTrainingPastOrToday) * 100) / 100
+  const totalCompleted = completedRequired + completedOptional;
+  const adherenceRate = totalRequiredPastOrToday > 0
+    ? Math.min(1.0, Math.round((completedRequired / totalRequiredPastOrToday) * 100) / 100)
     : 1.0;
 
   return {
-    totalPlannedSessions: totalTrainingPastOrToday,
-    completedSessions: completed,
+    totalPlannedSessions: totalRequiredPastOrToday,
+    completedSessions: totalCompleted,
+    completedRequiredSessions: completedRequired,
+    completedOptionalSessions: completedOptional,
     missedSessions: missed,
     skippedSessions: skipped,
     optionalSessions: optional,
