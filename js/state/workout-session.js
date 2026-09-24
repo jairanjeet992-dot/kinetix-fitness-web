@@ -12,6 +12,7 @@
  */
 
 import { getExerciseById } from '../data/exercises.js';
+import { calculateSessionTrainingLoad } from '../analytics/training-load.js';
 
 export const STORAGE_KEY_SESSION = 'kinetix_active_workout_session';
 export const STORAGE_KEY_HISTORY = 'kinetix_workout_history';
@@ -574,6 +575,151 @@ export function previousExercise(session, workout) {
 }
 
 /**
+ * Validates and normalizes a workout history record.
+ * Handles backward compatibility with Phase 3.1 records, sanitizes data types,
+ * prevents corrupt values from crashing the application, and computes deterministic training load.
+ *
+ * @param {Object} raw - Raw history record.
+ * @returns {Object|null} Sanitized record, or null if fatally invalid.
+ */
+export function sanitizeHistoryRecord(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+
+  // Essential IDs: sessionId is required
+  const sessionId = typeof raw.sessionId === 'string' && raw.sessionId.trim().length > 0
+    ? raw.sessionId.trim()
+    : null;
+  if (!sessionId) return null;
+
+  const workoutId = typeof raw.workoutId === 'string' && raw.workoutId.trim().length > 0
+    ? raw.workoutId.trim()
+    : 'workout-custom';
+
+  const title = typeof raw.title === 'string' && raw.title.trim().length > 0
+    ? raw.title.trim()
+    : (typeof raw.workoutTitle === 'string' && raw.workoutTitle.trim().length > 0
+        ? raw.workoutTitle.trim()
+        : 'Workout Session');
+
+  // Timestamps validation with safe defaults
+  let startedAt = raw.startedAt;
+  let completedAt = raw.completedAt;
+
+  const validCompleted = completedAt && !isNaN(new Date(completedAt).getTime());
+  const validStarted = startedAt && !isNaN(new Date(startedAt).getTime());
+
+  const nowIso = new Date().toISOString();
+  if (validCompleted && !validStarted) {
+    startedAt = completedAt;
+  } else if (!validCompleted && validStarted) {
+    completedAt = startedAt;
+  } else if (!validCompleted && !validStarted) {
+    completedAt = nowIso;
+    startedAt = nowIso;
+  }
+
+  // Duration normalization
+  let durationSeconds = 0;
+  if (Number.isFinite(raw.durationSeconds) && raw.durationSeconds > 0) {
+    durationSeconds = Math.round(raw.durationSeconds);
+  } else if (Number.isFinite(raw.duration) && raw.duration > 0) {
+    durationSeconds = Math.round(raw.duration);
+  } else if (Number.isFinite(raw.actualDuration) && raw.actualDuration > 0) {
+    durationSeconds = Math.round(raw.actualDuration);
+  } else if (Number.isFinite(raw.actualDurationMinutes) && raw.actualDurationMinutes > 0) {
+    durationSeconds = Math.round(raw.actualDurationMinutes * 60);
+  } else {
+    const diff = Math.round((new Date(completedAt).getTime() - new Date(startedAt).getTime()) / 1000);
+    durationSeconds = diff > 0 ? diff : 60;
+  }
+
+  // Sets normalization
+  const rawSets = raw.setsCompleted ?? raw.completedSets ?? 0;
+  const setsCompleted = Number.isFinite(Number(rawSets)) && Number(rawSets) >= 0 ? Math.round(Number(rawSets)) : 0;
+  const rawTotalSets = raw.totalSets ?? setsCompleted;
+  const totalSets = Number.isFinite(Number(rawTotalSets)) && Number(rawTotalSets) >= setsCompleted ? Math.round(Number(rawTotalSets)) : setsCompleted;
+
+  // Exercises arrays and counts
+  const completedExerciseIds = Array.isArray(raw.completedExerciseIds)
+    ? raw.completedExerciseIds.filter(id => typeof id === 'string' && id.trim().length > 0)
+    : (Array.isArray(raw.completedExercises)
+        ? raw.completedExercises.filter(id => typeof id === 'string' && id.trim().length > 0)
+        : []);
+
+  const skippedExerciseIds = Array.isArray(raw.skippedExerciseIds)
+    ? raw.skippedExerciseIds.filter(id => typeof id === 'string' && id.trim().length > 0)
+    : (Array.isArray(raw.skippedExercises)
+        ? raw.skippedExercises.filter(id => typeof id === 'string' && id.trim().length > 0)
+        : []);
+
+  const exercisesCompleted = Number.isFinite(Number(raw.exercisesCompleted))
+    ? Math.max(0, Math.round(Number(raw.exercisesCompleted)))
+    : completedExerciseIds.length;
+
+  const skippedExercises = Number.isFinite(Number(raw.skippedExercises))
+    ? Math.max(0, Math.round(Number(raw.skippedExercises)))
+    : skippedExerciseIds.length;
+
+  // Calories
+  const rawCalories = Number(raw.estimatedCalories);
+  const estimatedCalories = Number.isFinite(rawCalories) && rawCalories > 0
+    ? Math.round(rawCalories)
+    : Math.max(10, Math.round((durationSeconds / 60) * 7.5));
+
+  // Goal & Difficulty
+  const workoutGoal = typeof raw.workoutGoal === 'string' && raw.workoutGoal.trim().length > 0
+    ? raw.workoutGoal.trim().toLowerCase()
+    : (typeof raw.goal === 'string' && raw.goal.trim().length > 0 ? raw.goal.trim().toLowerCase() : 'build-muscle');
+
+  const workoutDifficulty = typeof raw.workoutDifficulty === 'string' && raw.workoutDifficulty.trim().length > 0
+    ? raw.workoutDifficulty.trim().toLowerCase()
+    : (typeof raw.difficulty === 'string' && raw.difficulty.trim().length > 0 ? raw.difficulty.trim().toLowerCase() : 'intermediate');
+
+  // Completion percentage
+  const rawPercent = Number(raw.completionPercentage);
+  const completionPercentage = Number.isFinite(rawPercent) && rawPercent >= 0 && rawPercent <= 100
+    ? Math.round(rawPercent)
+    : (totalSets > 0 ? Math.min(100, Math.round((setsCompleted / totalSets) * 100)) : 100);
+
+  // Requested duration
+  const requestedDuration = Number.isFinite(Number(raw.requestedDuration))
+    ? Number(raw.requestedDuration)
+    : (Number.isFinite(Number(raw.requestedDurationMinutes)) ? Number(raw.requestedDurationMinutes) : null);
+
+  const sanitized = {
+    sessionId,
+    workoutId,
+    title,
+    workoutTitle: title,
+    startedAt,
+    completedAt,
+    durationSeconds,
+    duration: durationSeconds,
+    actualDuration: durationSeconds,
+    actualDurationMinutes: Math.round((durationSeconds / 60) * 10) / 10,
+    requestedDuration,
+    exercisesCompleted,
+    completedExerciseIds,
+    skippedExercises,
+    skippedExerciseIds,
+    totalSets,
+    setsCompleted,
+    completedSets: setsCompleted,
+    workoutGoal,
+    workoutDifficulty,
+    estimatedCalories,
+    completionPercentage,
+    trainingLoad: 0
+  };
+
+  sanitized.trainingLoad = Number.isFinite(Number(raw.trainingLoad)) && Number(raw.trainingLoad) > 0
+    ? Math.round(Number(raw.trainingLoad))
+    : calculateSessionTrainingLoad(sanitized);
+
+  return sanitized;
+}
+
+/**
  * Completes the workout session and records it in local workout history.
  * Prevents duplicate completion (strictly idempotent).
  */
@@ -586,24 +732,49 @@ export function completeWorkout(session, workout) {
   session.isPaused = false;
   session.updatedAt = new Date().toISOString();
 
+  const routine = getRoutineItems(workout);
+  let totalRoutineSets = 0;
+  if (routine && routine.length > 0) {
+    routine.forEach(item => {
+      totalRoutineSets += (item.totalSets || 1);
+    });
+  }
+
   const durationSec = Math.max(1, session.elapsedSeconds || 1);
   const estCalories = (workout && typeof workout.estimatedCalories === 'number')
     ? workout.estimatedCalories
     : Math.max(10, Math.round((durationSec / 60) * 7.5));
 
-  const historyRecord = {
+  const completedSetsCount = Math.max(0, session.completedSets || 0);
+  const completedIds = Array.isArray(session.completedExercises) ? [...session.completedExercises] : [];
+  const skippedIds = Array.isArray(session.skippedExercises) ? [...session.skippedExercises] : [];
+
+  const rawRecord = {
     sessionId: session.sessionId,
     workoutId: session.workoutId,
     title: session.workoutTitle || (workout && workout.title) || 'Workout Session',
+    workoutTitle: session.workoutTitle || (workout && workout.title) || 'Workout Session',
     startedAt: session.startedAt,
     completedAt: new Date().toISOString(),
     durationSeconds: durationSec,
-    exercisesCompleted: (session.completedExercises || []).length,
-    setsCompleted: Math.max(0, session.completedSets || 0),
-    skippedExercises: (session.skippedExercises || []).length,
-    estimatedCalories: estCalories
+    duration: durationSec,
+    actualDuration: durationSec,
+    actualDurationMinutes: Math.round((durationSec / 60) * 10) / 10,
+    requestedDuration: (workout && (workout.requestedDurationMinutes || workout.durationMinutes)) || null,
+    exercisesCompleted: completedIds.length,
+    completedExerciseIds: completedIds,
+    skippedExercises: skippedIds.length,
+    skippedExerciseIds: skippedIds,
+    totalSets: Math.max(totalRoutineSets, completedSetsCount),
+    setsCompleted: completedSetsCount,
+    completedSets: completedSetsCount,
+    workoutGoal: (workout && workout.goal) || session.workoutGoal || 'build-muscle',
+    workoutDifficulty: (workout && workout.difficulty) || session.workoutDifficulty || 'intermediate',
+    estimatedCalories: estCalories,
+    completionPercentage: totalRoutineSets > 0 ? Math.min(100, Math.round((completedSetsCount / totalRoutineSets) * 100)) : 100
   };
 
+  const historyRecord = sanitizeHistoryRecord(rawRecord);
   saveWorkoutHistoryRecord(historyRecord);
   saveActiveSession(session);
   return session;
@@ -611,6 +782,7 @@ export function completeWorkout(session, workout) {
 
 /**
  * Retrieves the list of completed workout history records from localStorage.
+ * Automatically sanitizes records and gracefully handles corrupt storage.
  */
 export function getWorkoutHistory() {
   try {
@@ -619,8 +791,10 @@ export function getWorkoutHistory() {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    // Sanitize records
-    return parsed.filter(item => item && typeof item === 'object' && typeof item.sessionId === 'string');
+    // Sanitize records and drop fatal corruptions
+    return parsed
+      .map(item => sanitizeHistoryRecord(item))
+      .filter(Boolean);
   } catch (err) {
     console.warn('Failed to parse workout history from localStorage:', err);
     return [];
@@ -631,13 +805,14 @@ export function getWorkoutHistory() {
  * Saves a workout completion record to history, preventing duplicate session entries.
  */
 export function saveWorkoutHistoryRecord(record) {
-  if (!record || typeof record !== 'object' || typeof record.sessionId !== 'string') return false;
+  const sanitized = sanitizeHistoryRecord(record);
+  if (!sanitized) return false;
   try {
     if (typeof localStorage === 'undefined') return false;
     const history = getWorkoutHistory();
-    const exists = history.some(h => h && h.sessionId === record.sessionId);
+    const exists = history.some(h => h && h.sessionId === sanitized.sessionId);
     if (!exists) {
-      history.unshift(record);
+      history.unshift(sanitized);
       localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(history));
     }
     return true;
