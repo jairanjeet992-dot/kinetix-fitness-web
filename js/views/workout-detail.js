@@ -5,6 +5,7 @@
 
 import { getWorkoutById } from '../data/workouts.js';
 import { getExerciseById } from '../data/exercises.js';
+import { showExerciseDetailModal } from '../components/exercise-media.js';
 
 export function renderWorkoutDetail(container, workoutId) {
   const workout = getWorkoutById(workoutId) || getWorkoutById('metabolic-ignition');
@@ -107,30 +108,55 @@ export function renderWorkoutDetail(container, workoutId) {
           </div>
         </div>
 
-        <div class="flex flex-col gap-3">
-          ${exercises.map((ex, index) => `
-            <div class="exercise-card">
-              <div class="exercise-thumb" style="background-color: var(--color-surface-secondary);">
-                <span style="font-weight: 700; color: var(--color-primary); font-size: 1.125rem;">${index + 1}</span>
-              </div>
-              <div class="exercise-info">
-                <div class="exercise-name">${ex.name}</div>
-                <div class="exercise-details">
-                  <strong>${ex.defaultReps}</strong> &bull; Primary: ${ex.primaryMuscle} &bull; ${ex.equipment}
+        <div class="flex flex-col gap-3" id="workout-detail-sequence-list">
+          ${exercises.map((ex, index) => {
+            const cuePreview = Array.isArray(ex.formCues) && ex.formCues.length > 0
+              ? ex.formCues[0]
+              : (Array.isArray(ex.instructions) && ex.instructions.length > 0 ? ex.instructions[0].split('.')[0] : 'Controlled movement');
+
+            return `
+              <div class="exercise-card card-interactive" data-exercise-id="${ex.id}" role="button" tabindex="0" aria-label="Inspect ${ex.name}">
+                <div class="exercise-thumb" style="background-color: var(--color-surface-secondary);">
+                  <span style="font-weight: 700; color: var(--color-primary); font-size: 1.125rem;">${index + 1}</span>
                 </div>
-                <div class="text-caption text-muted" style="margin-top: 4px; line-height: 1.3;">
-                  ${ex.instructions}
+                <div class="exercise-info">
+                  <div class="exercise-name">${ex.name}</div>
+                  <div class="exercise-details">
+                    <strong>${ex.defaultReps}</strong> &bull; Primary: ${ex.primaryMuscle} &bull; ${ex.equipment}
+                  </div>
+                  <div class="text-caption text-muted" style="margin-top: 4px; line-height: 1.3;">
+                    ${cuePreview} &bull; <span style="color: var(--color-primary); font-weight: 500;">Tap to view form cues &rarr;</span>
+                  </div>
+                </div>
+                <div class="exercise-action">
+                  <span class="badge">${ex.difficulty}</span>
                 </div>
               </div>
-              <div class="exercise-action">
-                <span class="badge">${ex.difficulty}</span>
-              </div>
-            </div>
-          `).join('')}
+            `;
+          }).join('')}
         </div>
       </section>
     </div>
   `;
+
+  // Attach click listeners to exercise sequence cards to open rich detail modal
+  const seqContainer = container.querySelector('#workout-detail-sequence-list');
+  if (seqContainer) {
+    seqContainer.querySelectorAll('.exercise-card').forEach(card => {
+      const openExModal = () => {
+        const exId = card.getAttribute('data-exercise-id');
+        const ex = getExerciseById(exId);
+        if (ex) showExerciseDetailModal(ex);
+      };
+      card.addEventListener('click', openExModal);
+      card.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openExModal();
+        }
+      });
+    });
+  }
 
   // Bookmark button toast trigger
   const bookmarkBtn = container.querySelector('#btn-bookmark-workout');

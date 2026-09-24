@@ -4,15 +4,17 @@
  */
 
 import { WEEKLY_PLAN } from '../data/plans.js';
+import { getWeeklyPlan } from '../state/workout-history.js';
 import { getWorkoutById } from '../data/workouts.js';
 
 export function renderPlans(container) {
-  let selectedDayIndex = WEEKLY_PLAN.days.findIndex(d => d.status === 'today');
+  const weeklyPlan = getWeeklyPlan() || WEEKLY_PLAN;
+  let selectedDayIndex = weeklyPlan.days.findIndex(d => d.status === 'today');
   if (selectedDayIndex === -1) selectedDayIndex = 0;
 
   function renderDayDetails() {
     const detailBox = container.querySelector('#plan-day-detail-card');
-    const day = WEEKLY_PLAN.days[selectedDayIndex];
+    const day = weeklyPlan.days[selectedDayIndex];
     if (!detailBox) return;
 
     if (day.status === 'rest') {
@@ -102,12 +104,12 @@ export function renderPlans(container) {
       <!-- Plan Header -->
       <div class="section-header">
         <div>
-          <div class="badge badge-primary" style="margin-bottom: 6px;">Week ${WEEKLY_PLAN.weekNumber} of ${WEEKLY_PLAN.totalWeeks}</div>
-          <h1 class="text-h1">${WEEKLY_PLAN.title}</h1>
-          <p class="section-subtitle">${WEEKLY_PLAN.goal}</p>
+          <div class="badge badge-primary" style="margin-bottom: 6px;">Week ${weeklyPlan.weekNumber} of ${weeklyPlan.totalWeeks}</div>
+          <h1 class="text-h1">${weeklyPlan.title}</h1>
+          <p class="section-subtitle">${weeklyPlan.goal}</p>
         </div>
         <div style="text-align: right;">
-          <div class="text-h2 text-primary-color" style="font-weight: 700;">${WEEKLY_PLAN.weeklyCompletionPercent}%</div>
+          <div class="text-h2 text-primary-color" style="font-weight: 700;">${weeklyPlan.weeklyCompletionPercent}%</div>
           <span class="text-caption text-muted">Weekly Score</span>
         </div>
       </div>
@@ -124,7 +126,7 @@ export function renderPlans(container) {
           </div>
         </div>
         <div class="badge badge-primary" style="padding: 6px 12px;">
-          ${WEEKLY_PLAN.currentStreakDays} Day Streak Active
+          ${weeklyPlan.currentStreakDays} Day Streak Active
         </div>
       </div>
 
@@ -135,7 +137,7 @@ export function renderPlans(container) {
       </div>
 
       <div class="week-calendar-strip" role="tablist" aria-label="Days of the week">
-        ${WEEKLY_PLAN.days.map((day, i) => `
+        ${weeklyPlan.days.map((day, i) => `
           <button class="calendar-day-card ${i === selectedDayIndex ? 'is-active-day' : ''}" data-day-index="${i}" role="tab" aria-selected="${i === selectedDayIndex}">
             <span class="calendar-day-name">${day.dayOfWeek}</span>
             <span class="calendar-day-date">${day.dateLabel.split(' ')[1]}</span>

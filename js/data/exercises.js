@@ -1194,6 +1194,17 @@ EXERCISES.forEach(ex => {
   if (!ex.svgType && ex.media && ex.media.svgType) {
     ex.svgType = ex.media.svgType;
   }
+  // Form cues and safety notes backward-compatible enrichment
+  if (!ex.formCues) {
+    ex.formCues = ex.instructions && ex.instructions.length > 0
+      ? ex.instructions.slice(0, 3).map(i => i.split('.')[0].trim()).filter(Boolean)
+      : ['Maintain strict form', 'Control the movement'];
+  }
+  if (!ex.safetyNotes) {
+    ex.safetyNotes = ex.difficulty === 'advanced'
+      ? 'Ensure full joint stability before loading heavy.'
+      : 'Maintain a braced core and controlled tempo.';
+  }
 });
 
 /**

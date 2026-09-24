@@ -4,9 +4,11 @@
  */
 
 import { PROGRESS_DATA } from '../data/progress.js';
+import { getProgressData } from '../state/workout-history.js';
 
 export function renderProgress(container) {
-  const maxMinutes = Math.max(...PROGRESS_DATA.weeklyActivity.map(a => a.minutes), 40);
+  const progressData = getProgressData() || PROGRESS_DATA;
+  const maxMinutes = Math.max(...progressData.weeklyActivity.map(a => a.minutes), 40);
 
   container.innerHTML = `
     <div class="view-enter">
@@ -24,7 +26,7 @@ export function renderProgress(container) {
         <div class="card" style="padding: var(--space-4); text-align: center;">
           <span class="text-caption text-muted">TOTAL SESSIONS</span>
           <div class="text-h1" style="color: var(--color-primary); margin-top: 4px;">
-            ${PROGRESS_DATA.overview.totalWorkouts}
+            ${progressData.overview.totalWorkouts}
           </div>
           <span class="text-caption text-secondary">All-time finished</span>
         </div>
@@ -32,23 +34,23 @@ export function renderProgress(container) {
         <div class="card" style="padding: var(--space-4); text-align: center;">
           <span class="text-caption text-muted">TRAINING TIME</span>
           <div class="text-h1" style="color: var(--color-text-primary); margin-top: 4px;">
-            ${PROGRESS_DATA.overview.totalMinutes}m
+            ${progressData.overview.totalMinutes}m
           </div>
-          <span class="text-caption text-secondary">16.3 total hours</span>
+          <span class="text-caption text-secondary">${(progressData.overview.totalMinutes / 60).toFixed(1)} total hours</span>
         </div>
 
         <div class="card" style="padding: var(--space-4); text-align: center;">
           <span class="text-caption text-muted">ACTIVE STREAK</span>
           <div class="text-h1" style="color: var(--color-warning); margin-top: 4px;">
-            ${PROGRESS_DATA.overview.currentStreakDays}d
+            ${progressData.overview.currentStreakDays}d
           </div>
-          <span class="text-caption text-secondary">Personal best: 14d</span>
+          <span class="text-caption text-secondary">Current active streak</span>
         </div>
 
         <div class="card" style="padding: var(--space-4); text-align: center;">
           <span class="text-caption text-muted">EST. CALORIES</span>
           <div class="text-h1" style="color: var(--color-success); margin-top: 4px;">
-            ${(PROGRESS_DATA.overview.caloriesBurnedTotal / 1000).toFixed(1)}k
+            ${(progressData.overview.caloriesBurnedTotal / 1000).toFixed(1)}k
           </div>
           <span class="text-caption text-secondary">Active expenditure</span>
         </div>
@@ -61,11 +63,11 @@ export function renderProgress(container) {
             <h2 class="text-h2">Weekly Training Volume</h2>
             <p class="section-subtitle">Minutes active per calendar day (Current Week)</p>
           </div>
-          <span class="badge badge-primary">71% Adherence</span>
+          <span class="badge badge-primary">${progressData.overview.weeklyCompletionPercent || 71}% Adherence</span>
         </div>
 
         <div class="bar-chart-container" aria-label="Weekly Activity Bar Chart" role="img">
-          ${PROGRESS_DATA.weeklyActivity.map(act => {
+          ${progressData.weeklyActivity.map(act => {
             const heightPercent = act.minutes > 0 ? Math.round((act.minutes / maxMinutes) * 100) : 6;
             let barClass = 'bar-pill';
             if (act.completed) barClass += ' is-completed';
@@ -95,7 +97,7 @@ export function renderProgress(container) {
         </div>
 
         <div class="flex flex-col gap-3">
-          ${PROGRESS_DATA.muscleDistribution.map(m => `
+          ${progressData.muscleDistribution.map(m => `
             <div class="muscle-bar-row">
               <div class="muscle-bar-header">
                 <span style="font-weight: 600; color: var(--color-text-primary);">${m.muscle}</span>
@@ -119,7 +121,7 @@ export function renderProgress(container) {
         </div>
 
         <div class="grid grid-cols-1 grid-tablet-2 gap-3">
-          ${PROGRESS_DATA.personalRecords.map(pr => `
+          ${progressData.personalRecords.map(pr => `
             <div class="card" style="display: flex; align-items: center; justify-content: space-between;">
               <div>
                 <span class="badge badge-primary" style="margin-bottom: 4px;">${pr.exercise}</span>
@@ -145,7 +147,7 @@ export function renderProgress(container) {
         </div>
 
         <div class="card" style="padding: 0; overflow: hidden;">
-          ${PROGRESS_DATA.recentHistory.map((item, i) => `
+          ${progressData.recentHistory.map((item, i) => `
             <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-4); ${i > 0 ? 'border-top: 1px solid var(--color-border-subtle);' : ''}">
               <div style="display: flex; align-items: center; gap: var(--space-3);">
                 <div style="width: 40px; height: 40px; border-radius: var(--radius-pill); background-color: var(--color-primary-subtle); color: var(--color-primary); display: flex; align-items: center; justify-content: center;">

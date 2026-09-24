@@ -1,0 +1,17 @@
+{
+  "name": "kinetix-fitness-web",
+  "version": "2.0.0",
+  "description": "Kinetix - Mobile-First Premium Fitness Experience",
+  "type": "module",
+  "scripts": {
+    "test": "node test/workout-engine.test.js && node test/ui-integration.test.js && node test/phase8-player.test.js"
+  },
+  "keywords": [
+    "fitness",
+    "workout",
+    "mobile-first",
+    "vanilla-js"
+  ],
+  "author": "Kinetix Team",
+  "license": "UNLICENSED"
+}
