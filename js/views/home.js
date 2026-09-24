@@ -7,6 +7,7 @@ import { WORKOUTS, getFeaturedWorkout, getRecommendedWorkouts, registerGenerated
 import { WEEKLY_PLAN } from '../data/plans.js';
 import { getProfile } from '../state/profile.js';
 import { generateWorkout } from '../engine/workout-generator.js';
+import { getActiveSession, clearActiveSession } from '../state/workout-session.js';
 
 let currentVariationSeed = 0;
 
@@ -45,6 +46,8 @@ export function renderHome(container) {
     ? (profile.focusAreas.includes('Full Body') ? 'Full Body' : `${profile.focusAreas.join(' & ')} focused`)
     : 'Full Body';
   const durationText = `${todayWorkout.durationMin || todayWorkout.durationMinutes || 30} min session`;
+  const activeSession = getActiveSession();
+  const hasActiveSession = activeSession && !activeSession.isCompleted;
 
   container.innerHTML = `
     <div class="view-enter">
@@ -64,6 +67,34 @@ export function renderHome(container) {
           </a>
         </div>
       </div>
+
+      <!-- Incomplete Workout Session Recovery Banner -->
+      ${hasActiveSession ? `
+        <section class="card" style="background: linear-gradient(135deg, rgba(255, 84, 46, 0.12) 0%, rgba(255, 84, 46, 0.04) 100%); border: 1px solid var(--color-primary); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-5); border-radius: var(--radius-lg);">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-3);">
+            <div>
+              <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: 4px;">
+                <span class="badge badge-warning">IN PROGRESS</span>
+                <span class="text-caption text-muted">Session paused</span>
+              </div>
+              <h3 class="text-h3" style="color: var(--color-text-primary); margin-bottom: 2px;">
+                Resume "${activeSession.workoutTitle}"?
+              </h3>
+              <div class="text-body-sm" style="color: var(--color-text-secondary);">
+                Progress: Exercise ${activeSession.currentExerciseIndex + 1} &bull; Set ${activeSession.currentSet} of ${activeSession.totalSets}
+              </div>
+            </div>
+            <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
+              <a href="#player/${activeSession.workoutId}" class="btn btn-primary btn-sm" id="btn-resume-session">
+                Resume Workout &rarr;
+              </a>
+              <button type="button" class="btn btn-ghost btn-sm" id="btn-discard-session" style="color: var(--color-text-secondary);">
+                Discard
+              </button>
+            </div>
+          </div>
+        </section>
+      ` : ''}
 
       <!-- Primary Action: Today's Workout Hero Card -->
       <section class="today-hero-card" id="today-hero-section" aria-labelledby="today-workout-title">
@@ -95,7 +126,7 @@ export function renderHome(container) {
           ${todayWorkout.title}
         </h2>
         <p class="text-body" style="margin-bottom: var(--space-4); max-width: 540px;">
-          ${focusText} sessions calibrated for ${profile.fitnessLevel.toLowerCase()} intensity &bull; ${durationText}.
+          ${focusText} sessions calibrated for ${(profile.fitnessLevel || 'intermediate').toLowerCase()} intensity &bull; ${durationText}.
         </p>
 
         <!-- "Why this workout?" Personalization Explanation -->
@@ -205,7 +236,7 @@ export function renderHome(container) {
         <div class="section-header">
           <div>
             <h2 class="section-title">Recommended For You</h2>
-            <p class="section-subtitle">Based on your ${profile.fitnessLevel.toLowerCase()} level &bull; ${durationText}</p>
+            <p class="section-subtitle">Based on your ${(profile.fitnessLevel || 'intermediate').toLowerCase()} level &bull; ${durationText}</p>
           </div>
           <a href="#workouts" class="text-caption text-primary-color" style="font-weight: 600;">See All (${WORKOUTS.length}) &rarr;</a>
         </div>
@@ -273,6 +304,20 @@ export function renderHome(container) {
         window.showToast({
           type: 'info',
           message: 'Custom Workout Builder will unlock in Phase 3.'
+        });
+      }
+    });
+  }
+
+  const discardSessionBtn = container.querySelector('#btn-discard-session');
+  if (discardSessionBtn) {
+    discardSessionBtn.addEventListener('click', () => {
+      clearActiveSession();
+      renderHome(container);
+      if (window.showToast) {
+        window.showToast({
+          type: 'info',
+          message: 'Incomplete workout session discarded.'
         });
       }
     });

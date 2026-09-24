@@ -602,6 +602,58 @@
   justify-content: center;
   gap: var(--space-4);
   margin: var(--space-4) 0;
+  flex-wrap: wrap;
+}
+
+.player-reps-display {
+  font-size: 3.25rem;
+  font-weight: var(--font-weight-bold);
+  font-family: var(--font-family-mono);
+  letter-spacing: -0.03em;
+  color: var(--color-primary);
+  line-height: 1.1;
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.player-rest-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: linear-gradient(180deg, #181c24 0%, #11141a 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  padding: var(--space-4);
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.player-instruction-list {
+  text-align: left;
+  max-width: 480px;
+  width: 100%;
+  margin: var(--space-3) auto;
+  padding-left: var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body-sm);
+  line-height: 1.5;
+}
+
+.player-instruction-list li {
+  margin-bottom: 6px;
+}
+
+.player-summary-card {
+  background-color: var(--color-surface);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-6);
+  text-align: center;
+  max-width: 580px;
+  margin: 0 auto;
 }
 
 /* ==========================================================================
