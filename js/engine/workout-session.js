@@ -1,14 +1,14 @@
 /**
  * WORKOUT SESSION STATE MACHINE - KINETIX
- * Phase 8: Core Workout Session Lifecycle, Progression & Wall-Clock Accuracy
+ * Phase 8 & 8.1: Core Workout Session Lifecycle, Progression & Wall-Clock Accuracy (Hardened)
  *
  * Implements:
  * 1. Deterministic session state machine ('ready' | 'active' | 'paused' | 'resting' | 'completed' | 'abandoned')
  * 2. Multi-set and multi-round workout progression with work/rest intervals
  * 3. Wall-clock accurate timer reconciliation (no drift on tab backgrounding/mobile sleep)
  * 4. Automatic session persistence and seamless reload recovery
- * 5. Performance data logging per set (reps, weight, duration)
- * 6. Duplicate completion protection
+ * 5. Validated performance data logging per set (reps, weight, duration)
+ * 6. Duplicate completion protection & idempotent step logging
  * 7. Planned session & adaptive workout metadata integrity
  */
 
@@ -29,28 +29,40 @@ export class WorkoutSession {
     }
 
     this.workout = workout;
-    this.sessionId = options.sessionId || `sess_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    this.workoutId = workout.id;
-    this.workoutTitle = workout.title || 'Workout Session';
-    this.category = workout.category || 'Strength';
+    this.sessionId = typeof options.sessionId === 'string' && options.sessionId.trim()
+      ? options.sessionId.trim()
+      : `sess_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    this.workoutId = workout.id || options.workoutId || 'workout-custom';
+    this.workoutTitle = workout.title || options.workoutTitle || 'Workout Session';
+    this.category = workout.category || options.category || 'Strength';
 
     // Integration Metadata
     this.plannedSessionId = options.plannedSessionId || workout.plannedSessionId || null;
     this.planId = options.planId || workout.planId || null;
     this.planVersion = options.planVersion || workout.planVersion || '1.0';
     this.isAdaptive = Boolean(workout.isGenerated || options.isAdaptive);
-    this.adaptiveMetadata = options.adaptiveMetadata || workout.explanation ? { explanation: workout.explanation } : null;
+    this.adaptiveMetadata = options.adaptiveMetadata || (workout.explanation ? { explanation: workout.explanation } : null);
 
     // State Machine Flags
-    this.status = options.status || 'ready'; // ready | active | paused | resting | completed | abandoned
-    this.currentStepIndex = typeof options.currentStepIndex === 'number' ? options.currentStepIndex : 0;
+    const validStatuses = ['ready', 'active', 'paused', 'resting', 'completed', 'abandoned'];
+    this.status = validStatuses.includes(options.status) ? options.status : 'ready';
+    this.currentStepIndex = typeof options.currentStepIndex === 'number' && Number.isFinite(options.currentStepIndex)
+      ? Math.max(0, Math.floor(options.currentStepIndex))
+      : 0;
     this.workoutStartedAt = options.workoutStartedAt || new Date().toISOString();
     this.completedAt = options.completedAt || null;
-    this.totalElapsedSec = options.totalElapsedSec || 0;
+    this.totalElapsedSec = typeof options.totalElapsedSec === 'number' && Number.isFinite(options.totalElapsedSec)
+      ? Math.max(0, Math.floor(options.totalElapsedSec))
+      : 0;
 
     // Wall-clock timer tracking
-    this.stepStartedTimestamp = options.stepStartedTimestamp || null;
-    this.stepElapsedMs = options.stepElapsedMs || 0;
+    this.stepStartedTimestamp = typeof options.stepStartedTimestamp === 'number' && Number.isFinite(options.stepStartedTimestamp)
+      ? options.stepStartedTimestamp
+      : null;
+    this.stepElapsedMs = typeof options.stepElapsedMs === 'number' && Number.isFinite(options.stepElapsedMs)
+      ? Math.max(0, options.stepElapsedMs)
+      : 0;
+    this._lastTickTimestamp = Date.now();
 
     // Steps Generation
     if (Array.isArray(options.steps) && options.steps.length > 0) {
@@ -59,11 +71,15 @@ export class WorkoutSession {
       this.steps = this._buildSteps(workout);
     }
 
+    if (this.currentStepIndex >= this.steps.length) {
+      this.currentStepIndex = Math.max(0, this.steps.length - 1);
+    }
+
     // Performance logs
     this.completedLogs = Array.isArray(options.completedLogs) ? options.completedLogs : [];
 
     // Duplicate completion guard
-    this._isCompletedOnce = Boolean(options.completedAt);
+    this._isCompletedOnce = Boolean(this.completedAt || this.status === 'completed');
 
     // Event listeners
     this._listeners = new Set();
@@ -98,7 +114,7 @@ export class WorkoutSession {
 
     // Warmup stages (1 set each)
     if (Array.isArray(workout.warmup) && workout.warmup.length > 0) {
-      workout.warmup.forEach((wEx, idx) => {
+      workout.warmup.forEach((wEx) => {
         const ex = typeof wEx === 'string' ? getExerciseById(wEx) : wEx;
         if (!ex) return;
 
@@ -184,7 +200,7 @@ export class WorkoutSession {
 
     // Cooldown stages (1 set each)
     if (Array.isArray(workout.cooldown) && workout.cooldown.length > 0) {
-      workout.cooldown.forEach((cEx, idx) => {
+      workout.cooldown.forEach((cEx) => {
         const ex = typeof cEx === 'string' ? getExerciseById(cEx) : cEx;
         if (!ex) return;
 
@@ -287,25 +303,32 @@ export class WorkoutSession {
 
   /**
    * Internal interval ticker that triggers on every second.
+   * Drift-proof: reconciles elapsed time via Date.now() deltas.
    * @private
    */
   _startTimerTicking() {
     this._stopTimerTicking();
+    this._lastTickTimestamp = Date.now();
+
     this._timerInterval = setInterval(() => {
       if (this.status !== 'active' && this.status !== 'resting') {
         return;
       }
 
-      this.totalElapsedSec++;
+      const now = Date.now();
+      const deltaSec = Math.max(1, Math.round((now - this._lastTickTimestamp) / 1000));
+      this.totalElapsedSec += deltaSec;
+      this._lastTickTimestamp = now;
+
       const remaining = this.getRemainingSec();
 
       if (remaining <= 0) {
         // Interval auto-progression
         const step = this.getCurrentStep();
-        if (step.type === 'rest') {
+        if (step && step.type === 'rest') {
           // Rest period expired: advance to next work step
           this.skipRest();
-        } else if (step.exerciseType === 'timed') {
+        } else if (step && step.exerciseType === 'timed') {
           // Timed work interval expired: complete set automatically
           this.completeCurrentSet({
             reps: step.targetReps,
@@ -338,13 +361,15 @@ export class WorkoutSession {
 
   /**
    * Starts the workout session.
+   * Only transitions from 'ready' to avoid resetting timers if already active.
    */
   start() {
-    if (this.status === 'completed' || this.status === 'abandoned') return;
+    if (this.status !== 'ready') return;
 
     this.status = 'active';
     this.stepStartedTimestamp = Date.now();
     this.stepElapsedMs = 0;
+    this._lastTickTimestamp = Date.now();
     this._startTimerTicking();
     this._emit();
   }
@@ -374,6 +399,7 @@ export class WorkoutSession {
     const currentStep = this.getCurrentStep();
     this.status = currentStep && currentStep.type === 'rest' ? 'resting' : 'active';
     this.stepStartedTimestamp = Date.now();
+    this._lastTickTimestamp = Date.now();
     this._startTimerTicking();
     this._emit();
   }
@@ -395,32 +421,55 @@ export class WorkoutSession {
 
   /**
    * Records completion of the current work set and advances.
+   * Hardened: validates input parameters and deduplicates logs idempotently.
    *
    * @param {Object} logData - Actual performance inputs
    */
   completeCurrentSet(logData = {}) {
+    if (this.status === 'completed' || this.status === 'abandoned') {
+      return;
+    }
+
     const step = this.getCurrentStep();
     if (!step || step.type !== 'work') {
       return;
     }
 
-    // 1. Record performance log
-    const actualReps = logData.reps !== undefined && logData.reps !== null
-      ? (typeof logData.reps === 'number' ? logData.reps : parseInt(logData.reps, 10) || 0)
-      : (typeof step.targetReps === 'number' ? step.targetReps : parseInt(step.targetReps, 10) || 0);
+    // 1. Sanitize & validate performance inputs
+    let actualReps = null;
+    if (logData.reps !== undefined && logData.reps !== null) {
+      const parsed = typeof logData.reps === 'number' ? logData.reps : parseInt(logData.reps, 10);
+      if (Number.isFinite(parsed) && parsed >= 0) {
+        actualReps = Math.min(500, Math.floor(parsed));
+      }
+    }
+    if (actualReps === null) {
+      const targetParsed = typeof step.targetReps === 'number' ? step.targetReps : parseInt(step.targetReps, 10);
+      actualReps = Number.isFinite(targetParsed) && targetParsed >= 0 ? Math.min(500, Math.floor(targetParsed)) : 0;
+    }
 
-    const actualWeight = logData.weight !== undefined && logData.weight !== null
-      ? parseFloat(logData.weight)
-      : null;
+    let actualWeight = null;
+    if (logData.weight !== undefined && logData.weight !== null && logData.weight !== '') {
+      const parsedW = parseFloat(logData.weight);
+      if (Number.isFinite(parsedW) && parsedW >= 0) {
+        actualWeight = Math.min(1000, Math.round(parsedW * 10) / 10);
+      }
+    }
 
-    const durationSpent = Math.max(1, Math.round((this.stepElapsedMs + (this.stepStartedTimestamp ? Date.now() - this.stepStartedTimestamp : 0)) / 1000));
+    let durationSpent = Math.max(1, Math.round((this.stepElapsedMs + (this.stepStartedTimestamp ? Date.now() - this.stepStartedTimestamp : 0)) / 1000));
+    if (logData.durationSec !== undefined && logData.durationSec !== null) {
+      const parsedD = parseInt(logData.durationSec, 10);
+      if (Number.isFinite(parsedD) && parsedD > 0) {
+        durationSpent = Math.min(86400, parsedD);
+      }
+    }
 
     step.completed = true;
     step.loggedReps = actualReps;
     step.loggedWeight = actualWeight;
     step.loggedDurationSec = durationSpent;
 
-    this.completedLogs.push({
+    const logEntry = {
       stepId: step.stepId,
       exerciseId: step.exerciseId,
       exerciseName: step.exerciseName,
@@ -429,7 +478,15 @@ export class WorkoutSession {
       loggedReps: actualReps,
       loggedWeight: actualWeight,
       loggedDurationSec: durationSpent
-    });
+    };
+
+    // Deduplicate in completedLogs (update existing or append)
+    const existingLogIdx = this.completedLogs.findIndex(l => l.stepId === step.stepId);
+    if (existingLogIdx >= 0) {
+      this.completedLogs[existingLogIdx] = logEntry;
+    } else {
+      this.completedLogs.push(logEntry);
+    }
 
     // 2. Advance to next step (usually rest, or next work step)
     if (this.currentStepIndex < this.steps.length - 1) {
@@ -440,7 +497,7 @@ export class WorkoutSession {
       this.stepStartedTimestamp = Date.now();
       this.stepElapsedMs = 0;
 
-      if (nextStep.type === 'rest') {
+      if (nextStep && nextStep.type === 'rest') {
         this.status = 'resting';
       } else {
         this.status = 'active';
@@ -478,7 +535,7 @@ export class WorkoutSession {
     if (this.currentStepIndex < this.steps.length - 1) {
       this.currentStepIndex++;
       const next = this.getCurrentStep();
-      this.status = next.type === 'rest' ? 'resting' : 'active';
+      this.status = next && next.type === 'rest' ? 'resting' : 'active';
       this.stepStartedTimestamp = Date.now();
       this.stepElapsedMs = 0;
       this._emit();
@@ -488,10 +545,17 @@ export class WorkoutSession {
   }
 
   /**
-   * Moves back to the previous work step.
+   * Moves back to the previous work step and rolls back completed status deterministically.
    */
   previousStep() {
     if (this.currentStepIndex <= 0) return;
+
+    // Current step completed flag rollback if work step
+    const currentStep = this.getCurrentStep();
+    if (currentStep && currentStep.type === 'work') {
+      currentStep.completed = false;
+      this.completedLogs = this.completedLogs.filter(l => l.stepId !== currentStep.stepId);
+    }
 
     // Search backward for the preceding work step
     let targetIdx = this.currentStepIndex - 1;
@@ -500,6 +564,12 @@ export class WorkoutSession {
     }
 
     this.currentStepIndex = Math.max(0, targetIdx);
+    const prevWorkStep = this.getCurrentStep();
+    if (prevWorkStep && prevWorkStep.type === 'work') {
+      prevWorkStep.completed = false;
+      this.completedLogs = this.completedLogs.filter(l => l.stepId !== prevWorkStep.stepId);
+    }
+
     this.status = 'active';
     this.stepStartedTimestamp = Date.now();
     this.stepElapsedMs = 0;
@@ -513,7 +583,7 @@ export class WorkoutSession {
   finishSession() {
     this._stopTimerTicking();
 
-    if (this._isCompletedOnce) {
+    if (this._isCompletedOnce || this.status === 'completed') {
       return { ok: true, isDuplicate: true };
     }
     this._isCompletedOnce = true;
@@ -557,8 +627,13 @@ export class WorkoutSession {
 
   /**
    * Abandons the session, saves partial progress if sets were done, and clears active storage.
+   * Safe: will not overwrite an already completed session.
    */
   abandonSession() {
+    if (this._isCompletedOnce || this.status === 'completed' || this.status === 'abandoned') {
+      return;
+    }
+
     this._stopTimerTicking();
     this.status = 'abandoned';
 
@@ -690,7 +765,7 @@ export class WorkoutSession {
       const raw = localStorage.getItem(SESSION_STORAGE_KEY);
       if (!raw) return null;
       const data = JSON.parse(raw);
-      if (!data || !data.workoutId || data.status === 'completed' || data.status === 'abandoned') {
+      if (!data || typeof data !== 'object' || Array.isArray(data) || !data.workoutId || data.status === 'completed' || data.status === 'abandoned') {
         return null;
       }
 

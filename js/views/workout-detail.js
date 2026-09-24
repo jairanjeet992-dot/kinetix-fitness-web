@@ -156,7 +156,7 @@ export function renderWorkoutDetail(container, workoutId) {
                   <strong>${ex.targetReps || ex.defaultReps}</strong> &bull; Primary: ${ex.primaryMuscle} &bull; ${ex.equipment}
                 </div>
                 <div class="text-caption text-muted" style="margin-top: 4px; line-height: 1.3;">
-                  ${ex.instructions}
+                  ${Array.isArray(ex.instructions) ? (ex.instructions[0] || '') : (ex.instructions || '')}
                 </div>
               </div>
               <div class="exercise-action">

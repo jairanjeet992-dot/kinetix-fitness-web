@@ -1,30 +1,65 @@
 /**
  * EXERCISE MEDIA & VISUALIZATION ARCHITECTURE - KINETIX
  * Phase 8: Premium Biomechanical Movement Visualization & Failure-Safe Media
- *
- * Implements:
- * 1. Deterministic vector movement illustrations for all canonical movement patterns
- * 2. Visual motion trajectories & starting position cues
- * 3. Primary & secondary target muscle indicators
- * 4. Lazy-loaded image/video support with automatic silent fallback
- * 5. Reduced-motion compliance
- * 6. Zero dependencies, failure-safe under all malformed inputs
+ * Phase 8.1 Hardening: XSS escaping, safe protocol validation, accessible focus trap
  */
 
 import { MUSCLE_LABELS, EQUIPMENT_LABELS, CATEGORY_LABELS } from '../data/taxonomy.js';
 import { getExerciseHistory } from '../state/workout-history.js';
 
 /**
+ * Safely escapes characters for HTML insertion.
+ * @param {any} str
+ * @returns {string}
+ */
+export function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Validates and sanitizes media URLs to prevent script injection and attribute breakout.
+ * @param {any} url
+ * @returns {string|null}
+ */
+export function sanitizeMediaUrl(url) {
+  if (typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (!trimmed || trimmed.length > 2048) return null;
+  // Disallow dangerous protocols
+  if (/^(javascript|vbscript|data:(?!image\/))/i.test(trimmed)) return null;
+  // Allow safe protocols or relative/asset paths
+  if (/^(https?:|\/|\.\/|assets\/|images\/|data:image\/)/i.test(trimmed)) {
+    return trimmed.replace(/"/g, '%22').replace(/'/g, '%27').replace(/</g, '%3C').replace(/>/g, '%3E');
+  }
+  return null;
+}
+
+/**
  * Movement pattern vector artwork generator.
  * Produces clean, athletic, modern SVG diagrams representing exercise biomechanics.
+ * Crash-proof and injection-proof under all inputs.
  */
 export function getBiomechanicalIllustration(movementPattern = 'squat', primaryMuscles = ['quadriceps']) {
-  const primaryMuscle = primaryMuscles[0] || 'core';
+  const safePattern = typeof movementPattern === 'string' && movementPattern.trim().length > 0
+    ? movementPattern.trim().toLowerCase()
+    : 'squat';
+
+  const musclesArray = Array.isArray(primaryMuscles) && primaryMuscles.length > 0
+    ? primaryMuscles
+    : (typeof primaryMuscles === 'string' && primaryMuscles ? [primaryMuscles] : ['core']);
+  const primaryMuscle = typeof musclesArray[0] === 'string' ? musclesArray[0] : 'core';
+  const escapedPattern = escapeHtml(safePattern);
 
   // Base SVG wrapper styles
-  const baseSvgAttrs = `viewBox="0 0 160 120" fill="none" xmlns="http://www.w3.org/2000/svg" class="exercise-bio-svg" role="img" aria-label="${movementPattern} biomechanical movement illustration"`;
+  const baseSvgAttrs = `viewBox="0 0 160 120" fill="none" xmlns="http://www.w3.org/2000/svg" class="exercise-bio-svg" role="img" aria-label="${escapedPattern} biomechanical movement illustration"`;
 
-  switch (movementPattern) {
+  switch (safePattern) {
     case 'horizontal-push':
       // Push-Up / Bench Press: Horizontal torso, flexing elbows, chest drive
       return `
@@ -221,8 +256,10 @@ export function getExerciseBiomechanicalCues(exercise) {
   // 1. If explicit formCues array exists, use it
   if (Array.isArray(exercise.formCues) && exercise.formCues.length > 0) {
     return {
-      cues: exercise.formCues,
-      safetyNote: exercise.safetyNotes || exercise.safetyNote || 'Maintain controlled motion without jerking.'
+      cues: exercise.formCues.filter(c => typeof c === 'string' && c.trim().length > 0),
+      safetyNote: typeof exercise.safetyNotes === 'string' && exercise.safetyNotes.trim()
+        ? exercise.safetyNotes.trim()
+        : (exercise.safetyNote || 'Maintain controlled motion without jerking.')
     };
   }
 
@@ -230,9 +267,10 @@ export function getExerciseBiomechanicalCues(exercise) {
   const synthesizedCues = [];
   if (Array.isArray(exercise.instructions)) {
     exercise.instructions.slice(0, 3).forEach(inst => {
-      // Pick key concise clause
-      const shortClause = inst.split('.')[0].trim();
-      if (shortClause) synthesizedCues.push(shortClause);
+      if (typeof inst === 'string' && inst.trim()) {
+        const shortClause = inst.split('.')[0].trim();
+        if (shortClause) synthesizedCues.push(shortClause);
+      }
     });
   }
 
@@ -246,7 +284,7 @@ export function getExerciseBiomechanicalCues(exercise) {
 
   return {
     cues: synthesizedCues,
-    safetyNote: exercise.safetyNotes || defaultSafety
+    safetyNote: typeof exercise.safetyNotes === 'string' && exercise.safetyNotes.trim() ? exercise.safetyNotes.trim() : defaultSafety
   };
 }
 
@@ -267,19 +305,32 @@ export function renderExerciseMedia(exercise, options = {}) {
     equipment: ['bodyweight']
   };
 
-  const pattern = safeEx.movementPattern || 'squat';
+  const pattern = typeof safeEx.movementPattern === 'string' && safeEx.movementPattern.trim()
+    ? safeEx.movementPattern.trim().toLowerCase()
+    : 'squat';
+
   const primaryMuscles = Array.isArray(safeEx.primaryMuscles) && safeEx.primaryMuscles.length > 0
     ? safeEx.primaryMuscles
     : ['core'];
-  const mediaDef = safeEx.media || { type: 'placeholder', source: null };
+
+  const mediaDef = safeEx.media && typeof safeEx.media === 'object'
+    ? safeEx.media
+    : { type: 'placeholder', source: null };
+
   const { cues, safetyNote } = getExerciseBiomechanicalCues(safeEx);
 
-  const primaryMuscleName = MUSCLE_LABELS[primaryMuscles[0]] || primaryMuscles[0];
+  const rawMuscle = primaryMuscles[0];
+  const primaryMuscleName = MUSCLE_LABELS[rawMuscle] || (typeof rawMuscle === 'string' ? rawMuscle : 'Core');
   const vectorSvg = getBiomechanicalIllustration(pattern, primaryMuscles);
 
-  // Check if real external media is configured
-  const hasRealVideo = mediaDef.type === 'video' && Boolean(mediaDef.source);
-  const hasRealImage = (mediaDef.type === 'image' || mediaDef.type === 'animation') && Boolean(mediaDef.source);
+  // Validate and sanitize media source URL
+  const validSource = sanitizeMediaUrl(mediaDef.source);
+  const hasRealVideo = mediaDef.type === 'video' && Boolean(validSource);
+  const hasRealImage = (mediaDef.type === 'image' || mediaDef.type === 'animation') && Boolean(validSource);
+
+  const escapedName = escapeHtml(safeEx.name || 'Exercise');
+  const escapedPattern = escapeHtml(pattern.replace(/-/g, ' ').toUpperCase());
+  const escapedMuscle = escapeHtml(primaryMuscleName);
 
   const cuesHtml = options.showCues ? `
     <div class="exercise-cues-drawer" id="player-cues-drawer">
@@ -288,31 +339,31 @@ export function renderExerciseMedia(exercise, options = {}) {
         <span>FORM CUES</span>
       </div>
       <ul class="exercise-cues-list">
-        ${cues.map(c => `<li>${c}</li>`).join('')}
+        ${cues.map(c => `<li>${escapeHtml(c)}</li>`).join('')}
       </ul>
       ${safetyNote ? `
         <div class="exercise-safety-note">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          <span>${safetyNote}</span>
+          <span>${escapeHtml(safetyNote)}</span>
         </div>
       ` : ''}
     </div>
   ` : '';
 
   return `
-    <div class="player-media-stage ${options.className || ''}" id="exercise-media-stage" role="region" aria-label="Movement Demonstration for ${safeEx.name || 'Exercise'}">
+    <div class="player-media-stage ${escapeHtml(options.className || '')}" id="exercise-media-stage" role="region" aria-label="Movement Demonstration for ${escapedName}">
       <!-- Media Presentation Wrapper -->
       <div class="exercise-media-canvas" id="exercise-media-canvas">
         ${hasRealVideo ? `
           <video
             class="exercise-media-video"
-            src="${mediaDef.source}"
+            src="${validSource}"
             autoplay
             loop
             muted
             playsinline
-            aria-label="${safeEx.name} video demonstration"
-            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+            aria-label="${escapedName} video demonstration"
+            onerror="this.style.display='none'; if (typeof this.pause === 'function') this.pause(); const fb = this.parentElement ? this.parentElement.querySelector('.exercise-media-fallback') : null; if (fb) fb.style.display='flex';"
           ></video>
           <div class="exercise-media-fallback" style="display: none;">
             ${vectorSvg}
@@ -320,10 +371,10 @@ export function renderExerciseMedia(exercise, options = {}) {
         ` : hasRealImage ? `
           <img
             class="exercise-media-image"
-            src="${mediaDef.source}"
-            alt="${safeEx.name} movement illustration"
+            src="${validSource}"
+            alt="${escapedName} movement illustration"
             loading="lazy"
-            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+            onerror="this.style.display='none'; const fb = this.parentElement ? this.parentElement.querySelector('.exercise-media-fallback') : null; if (fb) fb.style.display='flex';"
           />
           <div class="exercise-media-fallback" style="display: none;">
             ${vectorSvg}
@@ -339,10 +390,10 @@ export function renderExerciseMedia(exercise, options = {}) {
       <!-- Stage Overlays: Muscle and Pattern badges -->
       <div class="exercise-media-meta-overlay">
         <span class="badge badge-dark exercise-media-pattern-badge">
-          ${pattern.replace('-', ' ').toUpperCase()}
+          ${escapedPattern}
         </span>
         <span class="badge badge-primary exercise-media-muscle-badge">
-          Target: ${primaryMuscleName}
+          Target: ${escapedMuscle}
         </span>
       </div>
 
@@ -354,12 +405,15 @@ export function renderExerciseMedia(exercise, options = {}) {
 /**
  * Opens the rich Exercise Detail inspection modal.
  * Can be invoked from Exercise Library, Workout Detail, or Workout Player.
+ * Hardened with focus trap, Esc closure, and focus restoration.
  *
  * @param {Object} ex - Exercise object
  */
 export function showExerciseDetailModal(ex) {
   if (!ex || typeof ex !== 'object') return;
   if (typeof document === 'undefined') return;
+
+  const previouslyFocused = document.activeElement;
 
   const existingModal = document.querySelector('#exercise-detail-modal');
   if (existingModal) existingModal.remove();
@@ -369,19 +423,27 @@ export function showExerciseDetailModal(ex) {
   const eqDisplay = (ex.equipment || []).map(eq => EQUIPMENT_LABELS[eq] || eq).join(', ');
 
   const instructionsList = Array.isArray(ex.instructions)
-    ? ex.instructions.map((step) => `<li style="margin-bottom: 6px;">${step}</li>`).join('')
-    : `<li>${ex.instructions || 'Perform movement with strict control.'}</li>`;
+    ? ex.instructions.map((step) => `<li style="margin-bottom: 6px;">${escapeHtml(step)}</li>`).join('')
+    : `<li>${escapeHtml(ex.instructions || 'Perform movement with strict control.')}</li>`;
 
   // Fetch real performance history for this exercise
-  const history = getExerciseHistory(ex.id);
+  const history = getExerciseHistory(ex.id) || { totalSets: 0, maxReps: 0, maxWeight: 0, lastPerformed: 'Never' };
+
+  const escapedName = escapeHtml(ex.name || 'Exercise');
+  const escapedCategory = escapeHtml(CATEGORY_LABELS[ex.category] || ex.category || 'Movement');
+  const escapedDifficulty = escapeHtml(ex.difficulty ? ex.difficulty.charAt(0).toUpperCase() + ex.difficulty.slice(1) : 'Beginner');
+  const escapedReps = escapeHtml(ex.defaultReps || '12 Reps');
+  const escapedPrimary = escapeHtml(primaryDisplay || 'Core');
+  const escapedSec = escapeHtml(secDisplay || '');
+  const escapedEq = escapeHtml(eqDisplay || 'Bodyweight');
 
   const modalHtml = `
     <div class="modal-backdrop is-active" id="exercise-detail-modal" role="dialog" aria-modal="true" aria-labelledby="modal-ex-title">
       <div class="modal-card view-enter" style="max-width: 540px; max-height: 90vh; overflow-y: auto;">
         <div class="modal-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-3);">
           <div>
-            <span class="badge badge-primary" style="margin-bottom: 6px;">${CATEGORY_LABELS[ex.category] || ex.category}</span>
-            <h2 id="modal-ex-title" class="text-h2" style="margin: 0;">${ex.name}</h2>
+            <span class="badge badge-primary" style="margin-bottom: 6px;">${escapedCategory}</span>
+            <h2 id="modal-ex-title" class="text-h2" style="margin: 0;">${escapedName}</h2>
           </div>
           <button type="button" class="btn btn-ghost btn-sm" id="btn-modal-close" aria-label="Close modal" style="font-size: 20px; line-height: 1; padding: 4px 8px;">
             &times;
@@ -397,15 +459,15 @@ export function showExerciseDetailModal(ex) {
         <div class="grid grid-cols-3 gap-2" style="margin-bottom: var(--space-4);">
           <div class="card" style="padding: var(--space-2) var(--space-3); text-align: center; background: var(--color-surface-secondary); border: none;">
             <span class="text-caption text-muted">DIFFICULTY</span>
-            <div class="text-label" style="margin-top: 2px;">${ex.difficulty ? ex.difficulty.charAt(0).toUpperCase() + ex.difficulty.slice(1) : 'Beginner'}</div>
+            <div class="text-label" style="margin-top: 2px;">${escapedDifficulty}</div>
           </div>
           <div class="card" style="padding: var(--space-2) var(--space-3); text-align: center; background: var(--color-surface-secondary); border: none;">
             <span class="text-caption text-muted">DEFAULT REPS</span>
-            <div class="text-label" style="margin-top: 2px;">${ex.defaultReps || '12 Reps'}</div>
+            <div class="text-label" style="margin-top: 2px;">${escapedReps}</div>
           </div>
           <div class="card" style="padding: var(--space-2) var(--space-3); text-align: center; background: var(--color-surface-secondary); border: none;">
             <span class="text-caption text-muted">BURN RATE</span>
-            <div class="text-label" style="margin-top: 2px;">~${ex.estimatedCaloriesPerMinute || 7} cal/m</div>
+            <div class="text-label" style="margin-top: 2px;">~${Math.round(ex.estimatedCaloriesPerMinute || 7)} cal/m</div>
           </div>
         </div>
 
@@ -413,18 +475,18 @@ export function showExerciseDetailModal(ex) {
         <div style="margin-bottom: var(--space-4);">
           <div class="text-label" style="margin-bottom: 4px;">Primary Target:</div>
           <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px;">
-            <span class="chip is-active" style="cursor: default;">${primaryDisplay || 'Core'}</span>
+            <span class="chip is-active" style="cursor: default;">${escapedPrimary}</span>
           </div>
-          ${secDisplay ? `
+          ${escapedSec ? `
             <div class="text-caption text-muted" style="margin-bottom: 2px;">Secondary Stabilizers:</div>
-            <div class="text-body-sm" style="color: var(--color-text-secondary);">${secDisplay}</div>
+            <div class="text-body-sm" style="color: var(--color-text-secondary);">${escapedSec}</div>
           ` : ''}
         </div>
 
         <!-- Equipment Required -->
         <div style="margin-bottom: var(--space-4);">
           <div class="text-label" style="margin-bottom: 4px;">Required Equipment:</div>
-          <div class="text-body-sm" style="color: var(--color-text-secondary);">${eqDisplay || 'Bodyweight'}</div>
+          <div class="text-body-sm" style="color: var(--color-text-secondary);">${escapedEq}</div>
         </div>
 
         <!-- Coaching Cues & Instructions -->
@@ -443,7 +505,7 @@ export function showExerciseDetailModal(ex) {
           </div>
           ${history.totalSets > 0 ? `
             <div class="text-body-sm" style="color: var(--color-text-primary);">
-              Best: <strong>${history.maxReps} reps</strong> ${history.maxWeight > 0 ? `@ ${history.maxWeight} kg` : ''} &bull; Last trained ${history.lastPerformed}
+              Best: <strong>${history.maxReps} reps</strong> ${history.maxWeight > 0 ? `@ ${history.maxWeight} kg` : ''} &bull; Last trained ${escapeHtml(history.lastPerformed || 'Recent')}
             </div>
           ` : `
             <div class="text-caption text-muted">
@@ -462,23 +524,53 @@ export function showExerciseDetailModal(ex) {
   document.body.insertAdjacentHTML('beforeend', modalHtml);
 
   const modalEl = document.querySelector('#exercise-detail-modal');
-  const closeBtn = modalEl.querySelector('#btn-modal-close');
-  const doneBtn = modalEl.querySelector('#btn-modal-done');
+  const closeBtn = modalEl ? modalEl.querySelector('#btn-modal-close') : null;
+  const doneBtn = modalEl ? modalEl.querySelector('#btn-modal-done') : null;
 
   const closeModal = () => {
-    modalEl.remove();
-    document.removeEventListener('keydown', handleEsc);
+    if (modalEl) modalEl.remove();
+    document.removeEventListener('keydown', handleKeyNavigation);
+    if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+      previouslyFocused.focus();
+    }
   };
 
-  const handleEsc = (e) => {
-    if (e.key === 'Escape') closeModal();
+  const handleKeyNavigation = (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeModal();
+      return;
+    }
+    // Trap Tab focus inside modal
+    if (e.key === 'Tab' && modalEl) {
+      const focusables = modalEl.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+      if (focusables.length > 0) {
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
   };
 
   if (closeBtn) closeBtn.addEventListener('click', closeModal);
   if (doneBtn) doneBtn.addEventListener('click', closeModal);
-  modalEl.addEventListener('click', (e) => {
-    if (e.target === modalEl) closeModal();
-  });
-  document.addEventListener('keydown', handleEsc);
-}
+  if (modalEl) {
+    modalEl.addEventListener('click', (e) => {
+      if (e.target === modalEl) closeModal();
+    });
+  }
+  document.addEventListener('keydown', handleKeyNavigation);
 
+  // Focus close button on open
+  if (closeBtn && typeof closeBtn.focus === 'function') {
+    closeBtn.focus();
+  }
+
+  return modalEl;
+}
