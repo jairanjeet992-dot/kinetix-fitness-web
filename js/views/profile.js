@@ -180,7 +180,7 @@ export function renderProfile(container) {
               <div class="text-caption text-secondary">Minimize interface animations for comfort</div>
             </div>
             <label class="toggle-switch">
-              <input type="checkbox" id="toggle-reduced-motion" ${document.body?.classList?.contains?.('reduced-motion') ? 'checked' : ''}>
+              <input type="checkbox" id="toggle-reduced-motion" ${profile.settings?.reducedMotion ? 'checked' : ''}>
               <span class="toggle-slider"></span>
             </label>
           </div>
@@ -223,6 +223,7 @@ export function renderProfile(container) {
   if (motionToggle) {
     motionToggle.addEventListener('change', (e) => {
       document.body.classList.toggle('reduced-motion', e.target.checked);
+      updateProfile({ settings: { ...profile.settings, reducedMotion: e.target.checked } });
       if (window.showToast) {
         window.showToast({
           type: 'info',
