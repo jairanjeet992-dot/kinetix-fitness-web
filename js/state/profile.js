@@ -25,7 +25,13 @@ export const INITIAL_ONBOARDING_STATE = {
   workoutDuration: null,
   currentStep: 0,
   onboardingCompleted: false,
-  updatedAt: null
+  updatedAt: null,
+  settings: {
+    audioCues: false,
+    pushNotifications: false,
+    vibrationHaptic: false,
+    reducedMotion: false
+  }
 };
 
 /**
@@ -96,6 +102,10 @@ export function getOnboardingState() {
   return {
     ...INITIAL_ONBOARDING_STATE,
     ...stored,
+    settings: {
+      ...INITIAL_ONBOARDING_STATE.settings,
+      ...(stored.settings && typeof stored.settings === 'object' ? stored.settings : {})
+    },
     targetMuscles,
     equipment: Array.isArray(stored.equipment) ? stored.equipment : []
   };
@@ -218,6 +228,10 @@ export function getProfile() {
       height: s.height ? formatHeight(s.height, s.heightUnit || 'cm') : '',
       weight: s.weight ? formatWeight(s.weight, s.weightUnit || 'kg') : '',
       bmi: bmi
+    },
+    settings: {
+      ...INITIAL_ONBOARDING_STATE.settings,
+      ...(s.settings && typeof s.settings === 'object' ? s.settings : {})
     }
   };
 }
