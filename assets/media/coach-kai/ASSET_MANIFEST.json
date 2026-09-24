@@ -1,0 +1,353 @@
+{
+  "$schema": "https://kinetix.fit/schemas/coach-asset-manifest-v1.json",
+  "coachId": "coach-kai",
+  "coachName": "Coach Kai",
+  "manifestVersion": "1.0.0",
+  "updatedAt": "2026-09-24T21:45:00Z",
+  "specification": {
+    "video": {
+      "format": "video/mp4",
+      "codec": "H.264 (avc1.4D401F / High Profile Level 4.1)",
+      "resolution": "1920x1080",
+      "aspectRatio": "16:9",
+      "fps": 60,
+      "audioTrack": false,
+      "colorSpace": "BT.709",
+      "pixelFormat": "yuv420p",
+      "crf": 22,
+      "maxBitrateKbps": 2500,
+      "targetFileSizeKbMin": 700,
+      "targetFileSizeKbMax": 1600
+    },
+    "poster": {
+      "format": "image/webp",
+      "resolution": "1920x1080",
+      "aspectRatio": "16:9",
+      "quality": 85,
+      "targetFileSizeKbMin": 50,
+      "targetFileSizeKbMax": 100
+    },
+    "thumbnail": {
+      "format": "image/webp",
+      "resolution": "256x256",
+      "aspectRatio": "1:1",
+      "quality": 80,
+      "targetFileSizeKbMin": 10,
+      "targetFileSizeKbMax": 20
+    },
+    "visualConsistency": {
+      "characterIdentity": "Coach Kai (Fictional Kinetix Digital Movement Specialist)",
+      "visualAge": "28-32",
+      "bodyProportions": "Athletic balanced, natural anatomical proportions",
+      "outfit": "Matte Charcoal compression top and tights with Ember Red seam piping (#FF542E)",
+      "footwear": "Minimalist black athletic training shoes with amber sole accents",
+      "accessories": "None (bare wrists and neck)",
+      "studioSetting": "Dark minimalist radial graphite gradient (#1A1A1E to #0E0E10)",
+      "lighting": "Three-point rim lighting with high contrast on active muscle insertions",
+      "cameraLanguage": "16:9 widescreen, fixed height 1.1m, 3.2m distance"
+    }
+  },
+  "pipelineStatus": {
+    "totalPilotExercises": 8,
+    "architectureStatus": "READY",
+    "binaryAssetStatus": "PENDING_ASSET_RENDER",
+    "fallbackTierActive": "TIER_3_PROCEDURAL_BIOMECHANICAL_SVG",
+    "decisionGateStatus": "NEEDS_ASSET"
+  },
+  "pilotExercises": [
+    {
+      "exerciseId": "air-squat",
+      "assetId": "kinetix_kai_sq_001",
+      "pattern": "squat",
+      "video": {
+        "path": "assets/media/coach-kai/air-squat.mp4",
+        "durationSec": 4.0,
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "poster": {
+        "path": "assets/media/coach-kai/air-squat-poster.webp",
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "thumbnail": {
+        "path": "assets/media/coach-kai/air-squat-thumb.webp",
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "keyframeTimestamps": {
+        "start": 0.0,
+        "eccentricDescent": 1.5,
+        "bottomInflection": 3.0,
+        "lockout": 4.0
+      },
+      "demonstration": {
+        "tempo": "3-0-1-0",
+        "primaryTarget": "Quadriceps, Gluteus Maximus",
+        "startPosition": "Feet shoulder-width apart, toes turned outward 15–30°, upright torso, arms balanced forward.",
+        "movement": "Simultaneously hinge hips down and back while flexing knees, keeping weight centered midfoot.",
+        "endPosition": "Hip crease breaks below the top of the patella, maintaining a neutral lumbar curvature.",
+        "primaryFormCue": "Track knees directly over middle toes; maintain proud chest throughout descent.",
+        "commonMistake": "Knees collapsing inward (valgus collapse) or heels elevating from the floor."
+      },
+      "decisionGate": "NEEDS_ASSET"
+    },
+    {
+      "exerciseId": "push-up",
+      "assetId": "kinetix_kai_pu_002",
+      "pattern": "horizontal-push",
+      "video": {
+        "path": "assets/media/coach-kai/push-up.mp4",
+        "durationSec": 3.5,
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "poster": {
+        "path": "assets/media/coach-kai/push-up-poster.webp",
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "thumbnail": {
+        "path": "assets/media/coach-kai/push-up-thumb.webp",
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "keyframeTimestamps": {
+        "start": 0.0,
+        "eccentricDescent": 1.5,
+        "chestHover": 2.0,
+        "lockout": 3.5
+      },
+      "demonstration": {
+        "tempo": "2-0-1-0",
+        "primaryTarget": "Pectoralis Major, Anterior Deltoids, Triceps Brachii",
+        "startPosition": "Hands slightly wider than shoulder-width, fingers spread, rigid straight-line plank from heels to crown.",
+        "movement": "Lower chest smoothly toward floor with elbows tucked at roughly 45° to the ribcage.",
+        "endPosition": "Chest hovers 1–2 inches above floor; elbows past 90° flexion; core braced rigid.",
+        "primaryFormCue": "Screw hands firmly into ground to engage lats and stabilize shoulder capsules.",
+        "commonMistake": "Sagging lower back, flaring elbows out perpendicular (90°), or craning neck forward."
+      },
+      "decisionGate": "NEEDS_ASSET"
+    },
+    {
+      "exerciseId": "pull-up",
+      "assetId": "kinetix_kai_pl_003",
+      "pattern": "vertical-pull",
+      "video": {
+        "path": "assets/media/coach-kai/pull-up.mp4",
+        "durationSec": 4.0,
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "poster": {
+        "path": "assets/media/coach-kai/pull-up-poster.webp",
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "thumbnail": {
+        "path": "assets/media/coach-kai/pull-up-thumb.webp",
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "keyframeTimestamps": {
+        "deadHang": 0.0,
+        "scapularDepression": 0.5,
+        "chinOverBar": 2.0,
+        "controlledLowering": 4.0
+      },
+      "demonstration": {
+        "tempo": "2-1-1-1",
+        "primaryTarget": "Latissimus Dorsi, Biceps, Rhomboids, Lower Trapezius",
+        "startPosition": "Overhand grip slightly wider than shoulders, arms fully extended in an active dead hang.",
+        "movement": "Depress and retract scapulae, drive elbows down and back to hoist chest toward the bar.",
+        "endPosition": "Chin clears the bar cleanly without cervical extension; chest touches or nears bar height.",
+        "primaryFormCue": "Think about driving your elbows into your back pockets rather than curling with arms.",
+        "commonMistake": "Kicking legs or kipping body for momentum; rounding shoulders forward at the top."
+      },
+      "decisionGate": "NEEDS_ASSET"
+    },
+    {
+      "exerciseId": "romanian-deadlift",
+      "assetId": "kinetix_kai_rdl_004",
+      "pattern": "hinge",
+      "video": {
+        "path": "assets/media/coach-kai/romanian-deadlift.mp4",
+        "durationSec": 4.2,
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "poster": {
+        "path": "assets/media/coach-kai/romanian-deadlift-poster.webp",
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "thumbnail": {
+        "path": "assets/media/coach-kai/romanian-deadlift-thumb.webp",
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "keyframeTimestamps": {
+        "uprightLockout": 0.0,
+        "hipHingeTravel": 2.0,
+        "hamstringInflection": 3.0,
+        "returnLockout": 4.2
+      },
+      "demonstration": {
+        "tempo": "3-1-1-0",
+        "primaryTarget": "Hamstrings (Biceps Femoris), Gluteus Maximus, Erector Spinae",
+        "startPosition": "Stand tall with feet hip-width, weights resting against anterior thighs, shoulders pinned back.",
+        "movement": "Unlock knees slightly and push hips straight backward as if closing a door behind you.",
+        "endPosition": "Weights reach mid-shin with maximum tension felt along hamstrings and glutes; spine neutral.",
+        "primaryFormCue": "Keep dumbbells brushing along thighs and shins; movement is purely horizontal hip travel.",
+        "commonMistake": "Squatting with knee bend rather than hinging hips; rounding thoracic or lumbar spine."
+      },
+      "decisionGate": "NEEDS_ASSET"
+    },
+    {
+      "exerciseId": "walking-lunge",
+      "assetId": "kinetix_kai_wl_005",
+      "pattern": "lunge",
+      "video": {
+        "path": "assets/media/coach-kai/walking-lunge.mp4",
+        "durationSec": 3.8,
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "poster": {
+        "path": "assets/media/coach-kai/walking-lunge-poster.webp",
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "thumbnail": {
+        "path": "assets/media/coach-kai/walking-lunge-thumb.webp",
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "keyframeTimestamps": {
+        "standingStart": 0.0,
+        "strideForward": 1.0,
+        "kneeHoverInflection": 2.0,
+        "stepThrough": 3.8
+      },
+      "demonstration": {
+        "tempo": "2-0-1-0",
+        "primaryTarget": "Quadriceps, Gluteus Medius & Maximus, Adductors",
+        "startPosition": "Stand tall with feet together, hands on hips or holding dumbbells at sides.",
+        "movement": "Step forward deliberately, planting heel-to-toe and lowering trailing knee straight down.",
+        "endPosition": "Both knees achieve approximately 90° angles; trailing knee hovers 1 inch above floor.",
+        "primaryFormCue": "Keep torso vertical with equal weight distribution between front heel and back ball of foot.",
+        "commonMistake": "Taking too short a stride causing forward knee shearing over toes; leaning torso forward."
+      },
+      "decisionGate": "NEEDS_ASSET"
+    },
+    {
+      "exerciseId": "bicep-curl",
+      "assetId": "kinetix_kai_bc_006",
+      "pattern": "isolation",
+      "video": {
+        "path": "assets/media/coach-kai/bicep-curl.mp4",
+        "durationSec": 3.2,
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "poster": {
+        "path": "assets/media/coach-kai/bicep-curl-poster.webp",
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "thumbnail": {
+        "path": "assets/media/coach-kai/bicep-curl-thumb.webp",
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "keyframeTimestamps": {
+        "armsExtended": 0.0,
+        "concentricFlexion": 1.2,
+        "peakContraction": 1.8,
+        "eccentricReturn": 3.2
+      },
+      "demonstration": {
+        "tempo": "2-1-1-0",
+        "primaryTarget": "Biceps Brachii, Brachialis, Forearm Flexors",
+        "startPosition": "Stand tall with dumbbells at sides, arms extended, palms facing forward or neutral.",
+        "movement": "Pin elbows to ribcage and flex elbows upward, supinating wrists as weights ascend.",
+        "endPosition": "Full bicep contraction at shoulder height without moving elbows forward or backward.",
+        "primaryFormCue": "Keep elbows locked at sides; isolate tension without using torso sway or hip drive.",
+        "commonMistake": "Swinging torso for momentum; shifting elbows forward to cheat mechanical tension."
+      },
+      "decisionGate": "NEEDS_ASSET"
+    },
+    {
+      "exerciseId": "forearm-plank",
+      "assetId": "kinetix_kai_fp_007",
+      "pattern": "core",
+      "video": {
+        "path": "assets/media/coach-kai/forearm-plank.mp4",
+        "durationSec": 4.0,
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "poster": {
+        "path": "assets/media/coach-kai/forearm-plank-poster.webp",
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "thumbnail": {
+        "path": "assets/media/coach-kai/forearm-plank-thumb.webp",
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "keyframeTimestamps": {
+        "setupAlignment": 0.0,
+        "isometricTensionMax": 2.0,
+        "pelvicBracing": 4.0
+      },
+      "demonstration": {
+        "tempo": "Isometric hold (continuous tension)",
+        "primaryTarget": "Rectus Abdominis, Transverse Abdominis, Internal & External Obliques",
+        "startPosition": "Forearms on floor with elbows directly under shoulders, feet hip-width apart.",
+        "movement": "Engage core, squeeze glutes, press forearms firmly into ground, and hold rigid line.",
+        "endPosition": "Continuous isometric hold with neutral pelvis, active lats, and flat thoracic spine.",
+        "primaryFormCue": "Pull elbows toward toes isometrically to maximize deep abdominal recruitment.",
+        "commonMistake": "Hyperextending lumbar spine (sagging hips); piking glutes into the air."
+      },
+      "decisionGate": "NEEDS_ASSET"
+    },
+    {
+      "exerciseId": "jumping-jack",
+      "assetId": "kinetix_kai_jj_008",
+      "pattern": "timed",
+      "video": {
+        "path": "assets/media/coach-kai/jumping-jack.mp4",
+        "durationSec": 2.4,
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "poster": {
+        "path": "assets/media/coach-kai/jumping-jack-poster.webp",
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "thumbnail": {
+        "path": "assets/media/coach-kai/jumping-jack-thumb.webp",
+        "existsOnDisk": false,
+        "status": "PENDING_RENDER"
+      },
+      "keyframeTimestamps": {
+        "feetTogether": 0.0,
+        "armsOverheadWide": 1.2,
+        "cadenceCycle": 2.4
+      },
+      "demonstration": {
+        "tempo": "Continuous rhythmic cadence (~60 bpm)",
+        "primaryTarget": "Cardiovascular System, Calves (Gastrocnemius), Deltoids",
+        "startPosition": "Stand tall with feet together, arms resting relaxed at sides.",
+        "movement": "Jump feet outward slightly wider than shoulder-width while sweeping arms overhead.",
+        "endPosition": "Hands clap or meet above head, feet wide; immediately spring back to start position.",
+        "primaryFormCue": "Land softly on balls of feet with knees slightly unlocked to absorb joint impact.",
+        "commonMistake": "Stiff-legged heavy heel landing; flailing arms without full shoulder range."
+      },
+      "decisionGate": "NEEDS_ASSET"
+    }
+  ]
+}

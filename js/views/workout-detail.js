@@ -7,6 +7,8 @@ import { getWorkoutById } from '../data/workouts.js';
 import { getExerciseById } from '../data/exercises.js';
 import { formatWeight } from '../analytics/performance-tracker.js';
 import { getProfile } from '../state/profile.js';
+import { showExerciseDetailModal } from '../components/exercise-media.js';
+import { resolveExerciseWithCoachMedia } from '../data/coach-system.js';
 
 export function renderWorkoutDetail(container, workoutId) {
   const profile = getProfile();
@@ -24,14 +26,15 @@ export function renderWorkoutDetail(container, workoutId) {
     return;
   }
 
-  // Resolve full exercise records, preserving any attached adaptive parameters
+  // Resolve full exercise records, preserving any attached adaptive parameters and linking Coach Kai metadata
   const exercises = (workout.exerciseIds || []).map(id => {
     const fromRoutine = Array.isArray(workout.exercises)
       ? workout.exercises.find(e => (typeof e === 'object' && e.id === id))
       : null;
     const base = getExerciseById(id);
     if (!base) return null;
-    return fromRoutine ? { ...base, ...fromRoutine } : base;
+    const merged = fromRoutine ? { ...base, ...fromRoutine } : base;
+    return resolveExerciseWithCoachMedia(merged);
   }).filter(Boolean);
 
   container.innerHTML = `
@@ -139,13 +142,18 @@ export function renderWorkoutDetail(container, workoutId) {
 
         <div class="flex flex-col gap-3">
           ${exercises.map((ex, index) => `
-            <div class="exercise-card">
+            <div class="exercise-card card-interactive" data-exercise-id="${ex.id}" role="button" tabindex="0" aria-label="View movement demonstration and form cues for ${ex.name}">
               <div class="exercise-thumb" style="background-color: var(--color-surface-secondary);">
                 <span style="font-weight: 700; color: var(--color-primary); font-size: 1.125rem;">${index + 1}</span>
               </div>
               <div class="exercise-info">
                 <div class="exercise-name" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                   <span>${ex.name}</span>
+                  ${ex.coach ? `
+                    <span class="badge" style="background: rgba(255, 84, 46, 0.12); color: var(--color-primary); font-size: 10px; padding: 1px 6px;">
+                      Coach Kai
+                    </span>
+                  ` : ''}
                   ${ex.targetWeightKg ? `
                     <span class="badge" style="background: rgba(46, 204, 113, 0.15); color: #2ecc71; border: 1px solid rgba(46, 204, 113, 0.4); font-size: 11px;">
                       Target: ${formatWeight(ex.targetWeightKg, userUnit)}
@@ -168,6 +176,24 @@ export function renderWorkoutDetail(container, workoutId) {
       </section>
     </div>
   `;
+
+  // Attach card click listeners to open detail modal
+  container.querySelectorAll('.exercise-card[data-exercise-id]').forEach(card => {
+    const openModal = () => {
+      const exId = card.getAttribute('data-exercise-id');
+      const exObj = exercises.find(e => e.id === exId);
+      if (exObj) {
+        showExerciseDetailModal(exObj);
+      }
+    };
+    card.addEventListener('click', openModal);
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openModal();
+      }
+    });
+  });
 
   // Bookmark button toast trigger
   const bookmarkBtn = container.querySelector('#btn-bookmark-workout');

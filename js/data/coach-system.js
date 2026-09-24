@@ -496,3 +496,75 @@ export function resolveExerciseWithCoachMedia(exercise) {
 
   return exercise;
 }
+
+/**
+ * Audits the 8 Pilot Exercises against real asset availability, metadata validity,
+ * and decision gate criteria.
+ *
+ * @param {Function} [fileExistsFn] - Optional filesystem existence checker
+ * @returns {Object} Full audit report with classification per exercise
+ */
+export function auditPilotAssets(fileExistsFn = null) {
+  const audit = {
+    totalExercises: PILOT_EXERCISE_IDS.length,
+    coachId: KINETIX_COACH.coachId,
+    decisionGateSummary: {
+      READY: 0,
+      NEEDS_ASSET: 0,
+      NEEDS_VISUAL_FIX: 0,
+      NEEDS_CODE_FIX: 0
+    },
+    exercises: {}
+  };
+
+  PILOT_EXERCISE_IDS.forEach(id => {
+    const media = PILOT_COACH_MEDIA[id];
+    const validation = validateCoachMedia(media);
+
+    let hasVideoFile = false;
+    let hasPosterFile = false;
+    let hasThumbnailFile = false;
+
+    if (typeof fileExistsFn === 'function') {
+      try {
+        hasVideoFile = Boolean(fileExistsFn(media.source));
+        hasPosterFile = Boolean(fileExistsFn(media.poster));
+        hasThumbnailFile = Boolean(fileExistsFn(media.thumbnail));
+      } catch (e) {
+        hasVideoFile = false;
+        hasPosterFile = false;
+        hasThumbnailFile = false;
+      }
+    }
+
+    let decisionGate = 'READY';
+    if (!validation.valid) {
+      decisionGate = 'NEEDS_CODE_FIX';
+    } else if (!hasVideoFile || !hasPosterFile) {
+      decisionGate = 'NEEDS_ASSET';
+    }
+
+    audit.decisionGateSummary[decisionGate] = (audit.decisionGateSummary[decisionGate] || 0) + 1;
+
+    audit.exercises[id] = {
+      id,
+      assetId: media.provenance ? media.provenance.assetId : null,
+      pattern: media.demonstration.movementPattern,
+      source: media.source,
+      poster: media.poster,
+      thumbnail: media.thumbnail,
+      hasVideoFile,
+      hasPosterFile,
+      hasThumbnailFile,
+      validation,
+      decisionGate
+    };
+  });
+
+  audit.overallStatus = audit.decisionGateSummary.NEEDS_ASSET > 0
+    ? 'ARCHITECTURE READY — VISUAL ASSETS NOT YET FINALIZED'
+    : (audit.decisionGateSummary.NEEDS_CODE_FIX > 0 ? 'NEEDS_CODE_FIX' : 'PILOT_READY_FOR_ROLLOUT');
+
+  return audit;
+}
+
