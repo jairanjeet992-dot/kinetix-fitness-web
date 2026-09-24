@@ -7,6 +7,7 @@ import { WORKOUTS, getFeaturedWorkout, getRecommendedWorkouts, registerGenerated
 import { WEEKLY_PLAN } from '../data/plans.js';
 import { getProfile } from '../state/profile.js';
 import { generateWorkout } from '../engine/workout-generator.js';
+import { generateAdaptiveWorkout } from '../engine/adaptive-workout-generator.js';
 import { getActiveSession, clearActiveSession } from '../state/workout-session.js';
 
 let currentVariationSeed = 0;
@@ -20,8 +21,8 @@ export function renderHome(container) {
   const userName = profile.name || 'Athlete';
   const userInitials = userName.split(' ').map(n => n[0]).filter(Boolean).join('').toUpperCase() || 'A';
 
-  // Generate today's personalized session from workout engine
-  const generatedResult = generateWorkout(profile, currentVariationSeed);
+  // Generate today's personalized session from adaptive workout engine
+  const generatedResult = generateAdaptiveWorkout(profile, currentVariationSeed);
   let todayWorkout = null;
   if (generatedResult.ok) {
     todayWorkout = generatedResult;
@@ -115,6 +116,12 @@ export function renderHome(container) {
           <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
             <span class="badge badge-primary">TODAY'S SESSION</span>
             <span class="badge" style="background: rgba(255,255,255,0.08);">${planTitle}</span>
+            ${todayWorkout.adaptation && todayWorkout.adaptation.applied ? `
+              <span class="badge" style="background: rgba(46, 204, 113, 0.15); color: #2ecc71; border: 1px solid rgba(46, 204, 113, 0.4); font-weight: 600;">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 4px; display: inline-block; vertical-align: middle;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                ADAPTED
+              </span>
+            ` : ''}
           </div>
           <button type="button" class="btn btn-ghost btn-sm" id="btn-regenerate-workout" aria-label="Regenerate routine with alternative exercises" style="padding: 4px 10px; font-size: 13px; color: var(--color-text-secondary);">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
@@ -128,6 +135,22 @@ export function renderHome(container) {
         <p class="text-body" style="margin-bottom: var(--space-4); max-width: 540px;">
           ${focusText} sessions calibrated for ${(profile.fitnessLevel || 'intermediate').toLowerCase()} intensity &bull; ${durationText}.
         </p>
+
+        <!-- Adaptive Training Intelligence Insight Card -->
+        ${todayWorkout.adaptation && todayWorkout.adaptation.applied ? `
+          <div class="adaptive-intelligence-card" style="background: rgba(46, 204, 113, 0.06); border: 1px solid rgba(46, 204, 113, 0.35); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4);">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: 6px;">
+              <div style="display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #2ecc71;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                Adaptive Calibration Applied
+              </div>
+              <span class="badge" style="background: rgba(46, 204, 113, 0.2); color: #2ecc71; font-size: 10px; padding: 2px 8px;">${todayWorkout.adaptation.status}</span>
+            </div>
+            <ul style="margin: 0; padding-left: 18px; color: var(--color-text-secondary); font-size: var(--font-size-body-sm); line-height: 1.45;">
+              ${todayWorkout.adaptation.reasons.map(r => `<li>${r}</li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
 
         <!-- "Why this workout?" Personalization Explanation -->
         ${todayWorkout.explanation ? `
