@@ -4,7 +4,7 @@
  */
 
 import { escapeHtml } from '../components/exercise-media.js';
-import { getProfile } from '../state/profile.js';
+import { getProfile, updateProfile } from '../state/profile.js';
 
 export function renderProfile(container) {
   const profile = getProfile();
@@ -158,7 +158,7 @@ export function renderProfile(container) {
               <div class="text-caption text-secondary">Voice alerts for remaining interval seconds</div>
             </div>
             <label class="toggle-switch">
-              <input type="checkbox" id="toggle-audio-cues" ${false ? 'checked' : ''}>
+              <input type="checkbox" id="toggle-audio-cues" ${profile.settings?.audioCues ? 'checked' : ''}>
               <span class="toggle-slider"></span>
             </label>
           </div>
@@ -169,7 +169,7 @@ export function renderProfile(container) {
               <div class="text-caption text-secondary">Morning notification to complete plan</div>
             </div>
             <label class="toggle-switch">
-              <input type="checkbox" id="toggle-notifications" ${false ? 'checked' : ''}>
+              <input type="checkbox" id="toggle-notifications" ${profile.settings?.pushNotifications ? 'checked' : ''}>
               <span class="toggle-slider"></span>
             </label>
           </div>
@@ -191,7 +191,7 @@ export function renderProfile(container) {
               <div class="text-caption text-secondary">Haptic buzz at end of interval set</div>
             </div>
             <label class="toggle-switch">
-              <input type="checkbox" id="toggle-haptics" ${false ? 'checked' : ''}>
+              <input type="checkbox" id="toggle-haptics" ${profile.settings?.vibrationHaptic ? 'checked' : ''}>
               <span class="toggle-slider"></span>
             </label>
           </div>
@@ -235,7 +235,7 @@ export function renderProfile(container) {
   const audioToggle = container.querySelector('#toggle-audio-cues');
   if (audioToggle) {
     audioToggle.addEventListener('change', (e) => {
-      // Audio preference persistence is not yet part of the canonical profile state.
+      updateProfile({ settings: { ...profile.settings, audioCues: e.target.checked } });
       if (window.showToast) {
         window.showToast({
           type: 'info',
@@ -248,7 +248,7 @@ export function renderProfile(container) {
   const notifToggle = container.querySelector('#toggle-notifications');
   if (notifToggle) {
     notifToggle.addEventListener('change', (e) => {
-      // Notification preference persistence is not yet part of the canonical profile state.
+      updateProfile({ settings: { ...profile.settings, pushNotifications: e.target.checked } });
       if (window.showToast) {
         window.showToast({
           type: 'info',
