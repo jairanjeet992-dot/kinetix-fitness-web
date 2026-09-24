@@ -3,13 +3,14 @@
  * Phase 1: Core Information Architecture
  */
 
-import { USER_PROFILE } from '../data/profile.js';
-import { getProfile } from '../state/profile.js';
+import { escapeHtml } from '../components/exercise-media.js';
+import { getProfile, updateProfile } from '../state/profile.js';
 
 export function renderProfile(container) {
   const profile = getProfile();
   const userName = profile.name || 'Athlete';
-  const userInitials = userName.split(' ').map(n => n[0]).filter(Boolean).join('').toUpperCase() || 'A';
+  const safeUserName = escapeHtml(userName);
+  const userInitials = userName.split(/\s+/).map(n => n[0]).filter(Boolean).join('').toUpperCase() || 'A';
   const age = profile.stats?.age || '--';
   const height = profile.stats?.height || '--';
   const weight = profile.stats?.weight || '--';
@@ -33,12 +34,12 @@ export function renderProfile(container) {
             </div>
             <div>
               <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: 2px;">
-                <h1 class="text-h1" style="font-size: 1.5rem;">${userName}</h1>
-                <span class="badge badge-primary">PRO</span>
+                <h1 class="text-h1" style="font-size: 1.5rem;">${safeUserName}</h1>
+                <span class="badge badge-primary">KINETIX</span>
               </div>
-              <div class="text-caption text-secondary">${USER_PROFILE.handle} &bull; ${USER_PROFILE.joinedDate}</div>
+              <div class="text-caption text-secondary">Personal fitness profile</div>
               <div class="text-caption text-primary-color" style="font-weight: 600; margin-top: 4px;">
-                ${USER_PROFILE.membershipTier}
+                ${escapeHtml(profile.fitnessLevel ? `${profile.fitnessLevel} Athlete` : 'Kinetix Athlete')}
               </div>
             </div>
           </div>
@@ -72,13 +73,13 @@ export function renderProfile(container) {
           <div class="profile-stat-box">
             <span class="text-caption text-muted">WEIGHT</span>
             <div class="profile-stat-val" style="margin-top: 4px;">${weight}</div>
-            <span class="text-caption text-secondary">Target: 73 kg</span>
+            <span class="text-caption text-secondary">Current recorded weight</span>
           </div>
 
           <div class="profile-stat-box">
             <span class="text-caption text-muted">BMI</span>
             <div class="profile-stat-val" style="margin-top: 4px;">${bmi}</div>
-            <span class="text-caption text-success">Optimal</span>
+            <span class="text-caption text-secondary">Calculated from height & weight</span>
           </div>
         </div>
       </section>
@@ -95,7 +96,7 @@ export function renderProfile(container) {
               <div class="text-label">Primary Goal</div>
               <div class="text-caption text-secondary">Focus of weekly recommendations</div>
             </div>
-            <span class="badge badge-primary">${profile.goal || 'Build Muscle'}</span>
+            <span class="badge badge-primary">${escapeHtml(profile.goal || 'Build Muscle')}</span>
           </div>
 
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border-subtle); padding-bottom: var(--space-2);">
@@ -103,7 +104,7 @@ export function renderProfile(container) {
               <div class="text-label">Conditioning Level</div>
               <div class="text-caption text-secondary">Determines interval pacing and load</div>
             </div>
-            <span class="badge badge-dark">${profile.fitnessLevel || 'Intermediate'}</span>
+            <span class="badge badge-dark">${escapeHtml(profile.fitnessLevel || 'Intermediate')}</span>
           </div>
 
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border-subtle); padding-bottom: var(--space-2);">
@@ -111,7 +112,7 @@ export function renderProfile(container) {
               <div class="text-label">Target Duration</div>
               <div class="text-caption text-secondary">Ideal daily workout window</div>
             </div>
-            <span class="badge">${profile.workoutDuration || '20–30 min'}</span>
+            <span class="badge">${escapeHtml(profile.workoutDuration || '20–30 min')}</span>
           </div>
 
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border-subtle); padding-bottom: var(--space-2);">
@@ -119,7 +120,7 @@ export function renderProfile(container) {
               <div class="text-label">Training Frequency</div>
               <div class="text-caption text-secondary">Committed weekly workout schedule</div>
             </div>
-            <span class="badge badge-subtle">${profile.trainingDays || '4 days'}</span>
+            <span class="badge badge-subtle">${escapeHtml(profile.trainingDays || '4 days')}</span>
           </div>
 
           <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--color-border-subtle); padding-bottom: var(--space-2);">
@@ -127,7 +128,7 @@ export function renderProfile(container) {
               <div class="text-label">Focus Areas</div>
               <div class="text-caption text-secondary" style="margin-bottom: var(--space-2);">Selected target muscle groups</div>
               <div style="display: flex; gap: var(--space-1); flex-wrap: wrap;">
-                ${focusList.map(f => `<span class="badge badge-primary">${f}</span>`).join('')}
+                ${focusList.map(f => `<span class="badge badge-primary">${escapeHtml(f)}</span>`).join('')}
               </div>
             </div>
           </div>
@@ -137,7 +138,7 @@ export function renderProfile(container) {
               <div class="text-label">Equipped Home Gym</div>
               <div class="text-caption text-secondary" style="margin-bottom: var(--space-2);">Filtered in workout discovery</div>
               <div style="display: flex; gap: var(--space-1); flex-wrap: wrap;">
-                ${equipmentList.map(eq => `<span class="badge">${eq}</span>`).join('')}
+                ${equipmentList.map(eq => `<span class="badge">${escapeHtml(eq)}</span>`).join('')}
               </div>
             </div>
           </div>
@@ -157,7 +158,7 @@ export function renderProfile(container) {
               <div class="text-caption text-secondary">Voice alerts for remaining interval seconds</div>
             </div>
             <label class="toggle-switch">
-              <input type="checkbox" id="toggle-audio-cues" ${USER_PROFILE.settings.audioCues ? 'checked' : ''}>
+              <input type="checkbox" id="toggle-audio-cues" ${profile.settings?.audioCues ? 'checked' : ''}>
               <span class="toggle-slider"></span>
             </label>
           </div>
@@ -168,7 +169,7 @@ export function renderProfile(container) {
               <div class="text-caption text-secondary">Morning notification to complete plan</div>
             </div>
             <label class="toggle-switch">
-              <input type="checkbox" id="toggle-notifications" ${USER_PROFILE.settings.pushNotifications ? 'checked' : ''}>
+              <input type="checkbox" id="toggle-notifications" ${profile.settings?.pushNotifications ? 'checked' : ''}>
               <span class="toggle-slider"></span>
             </label>
           </div>
@@ -179,7 +180,7 @@ export function renderProfile(container) {
               <div class="text-caption text-secondary">Minimize interface animations for comfort</div>
             </div>
             <label class="toggle-switch">
-              <input type="checkbox" id="toggle-reduced-motion" ${document.body?.classList?.contains?.('reduced-motion') ? 'checked' : ''}>
+              <input type="checkbox" id="toggle-reduced-motion" ${profile.settings?.reducedMotion ? 'checked' : ''}>
               <span class="toggle-slider"></span>
             </label>
           </div>
@@ -190,7 +191,7 @@ export function renderProfile(container) {
               <div class="text-caption text-secondary">Haptic buzz at end of interval set</div>
             </div>
             <label class="toggle-switch">
-              <input type="checkbox" id="toggle-haptics" ${USER_PROFILE.settings.vibrationHaptic ? 'checked' : ''}>
+              <input type="checkbox" id="toggle-haptics" ${profile.settings?.vibrationHaptic ? 'checked' : ''}>
               <span class="toggle-slider"></span>
             </label>
           </div>
@@ -222,6 +223,7 @@ export function renderProfile(container) {
   if (motionToggle) {
     motionToggle.addEventListener('change', (e) => {
       document.body.classList.toggle('reduced-motion', e.target.checked);
+      updateProfile({ settings: { ...profile.settings, reducedMotion: e.target.checked } });
       if (window.showToast) {
         window.showToast({
           type: 'info',
@@ -234,7 +236,7 @@ export function renderProfile(container) {
   const audioToggle = container.querySelector('#toggle-audio-cues');
   if (audioToggle) {
     audioToggle.addEventListener('change', (e) => {
-      USER_PROFILE.settings.audioCues = e.target.checked;
+      updateProfile({ settings: { ...profile.settings, audioCues: e.target.checked } });
       if (window.showToast) {
         window.showToast({
           type: 'info',
@@ -247,7 +249,7 @@ export function renderProfile(container) {
   const notifToggle = container.querySelector('#toggle-notifications');
   if (notifToggle) {
     notifToggle.addEventListener('change', (e) => {
-      USER_PROFILE.settings.pushNotifications = e.target.checked;
+      updateProfile({ settings: { ...profile.settings, pushNotifications: e.target.checked } });
       if (window.showToast) {
         window.showToast({
           type: 'info',

@@ -13,6 +13,7 @@ import { getActivePlan, SESSION_TYPE } from '../state/training-plan.js';
 import { toDateString } from '../engine/plan-generator.js';
 import { getExerciseById } from '../data/exercises.js';
 import { renderExerciseVisualThumbnail } from '../components/exercise-visual.js';
+import { escapeHtml } from '../components/exercise-media.js';
 
 let currentVariationSeed = 0;
 
@@ -23,6 +24,7 @@ export function renderHome(container) {
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
   const userName = profile.name || 'Athlete';
+  const safeUserName = escapeHtml(userName);
   const userInitials = userName.split(' ').map(n => n[0]).filter(Boolean).join('').toUpperCase() || 'A';
 
   // Generate today's personalized session from adaptive workout engine
@@ -57,11 +59,14 @@ export function renderHome(container) {
     'Improve Fitness': 'Your conditioning plan',
     'Stay Active': 'Your active lifestyle plan'
   };
-  const planTitle = planTitles[profile.goal] || `${profile.goal} plan`;
+  const planTitle = planTitles[profile.goal] || `${profile.goal || 'Personalized'} plan`;
+  const safePlanTitle = escapeHtml(planTitle);
 
   const focusText = Array.isArray(profile.focusAreas) && profile.focusAreas.length > 0
     ? (profile.focusAreas.includes('Full Body') ? 'Full Body' : `${profile.focusAreas.join(' & ')} focused`)
     : 'Full Body';
+  const safeFocusText = escapeHtml(focusText);
+  const safeFitnessLevel = escapeHtml(profile.fitnessLevel || 'intermediate');
   const durationText = `${todayWorkout.durationMin || todayWorkout.durationMinutes || 30} min session`;
   const activeSession = getActiveSession();
   const hasActiveSession = activeSession && !activeSession.isCompleted;
@@ -72,7 +77,7 @@ export function renderHome(container) {
       <div class="home-greeting-bar">
         <div>
           <div class="text-caption text-muted">${greeting},</div>
-          <h1 class="text-h1" style="margin-top: 2px;">${userName}</h1>
+          <h1 class="text-h1" style="margin-top: 2px;">${safeUserName}</h1>
         </div>
         <div style="display: flex; align-items: center; gap: var(--space-2);">
           <div class="badge badge-primary" style="padding: 6px 12px; font-weight: 600;">
@@ -131,7 +136,7 @@ export function renderHome(container) {
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3); flex-wrap: wrap; gap: var(--space-2);">
           <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
             <span class="badge badge-primary">TODAY'S SESSION</span>
-            <span class="badge" style="background: rgba(255,255,255,0.08);">${planTitle}</span>
+            <span class="badge" style="background: rgba(255,255,255,0.08);">${safePlanTitle}</span>
             ${todayPlannedSession ? `
               <a href="#plans" class="badge" style="background: rgba(255, 84, 46, 0.15); color: var(--color-primary); text-decoration: none;">
                 Plan: ${todayPlannedSession.sessionType === SESSION_TYPE.REST ? 'Rest Day' : todayPlannedSession.targetFocus}
@@ -151,10 +156,10 @@ export function renderHome(container) {
         </div>
 
         <h2 id="today-workout-title" class="text-h1" style="margin-bottom: var(--space-2); color: var(--color-text-primary);">
-          ${todayWorkout.title}
+          ${escapeHtml(todayWorkout.title || 'Today\'s Workout')}
         </h2>
         <p class="text-body" style="margin-bottom: var(--space-4); max-width: 540px;">
-          ${focusText} sessions calibrated for ${(profile.fitnessLevel || 'intermediate').toLowerCase()} intensity &bull; ${durationText}.
+          ${safeFocusText} sessions calibrated for ${safeFitnessLevel.toLowerCase()} intensity &bull; ${durationText}.
         </p>
 
         <!-- Adaptive Training Intelligence Insight Card -->
@@ -168,7 +173,7 @@ export function renderHome(container) {
               <span class="badge" style="background: rgba(46, 204, 113, 0.2); color: #2ecc71; font-size: 10px; padding: 2px 8px;">${todayWorkout.adaptation.status}</span>
             </div>
             <ul style="margin: 0; padding-left: 18px; color: var(--color-text-secondary); font-size: var(--font-size-body-sm); line-height: 1.45;">
-              ${todayWorkout.adaptation.reasons.map(r => `<li>${r}</li>`).join('')}
+              ${todayWorkout.adaptation.reasons.map(r => `<li>${escapeHtml(r)}</li>`).join('')}
             </ul>
           </div>
         ` : ''}
@@ -313,7 +318,8 @@ export function renderHome(container) {
                 </div>
               </div>
             </article>
-          `).join('')}
+          `;
+          }).join('')}
         </div>
       </section>
     </div>

@@ -33,10 +33,16 @@ export function sanitizeMediaUrl(url) {
   if (typeof url !== 'string') return null;
   const trimmed = url.trim();
   if (!trimmed || trimmed.length > 2048) return null;
-  // Disallow dangerous protocols
-  if (/^(javascript|vbscript|data:(?!image\/))/i.test(trimmed)) return null;
-  // Allow safe protocols or relative/asset paths
-  if (/^(https?:|\/|\.\/|assets\/|images\/|data:image\/)/i.test(trimmed)) {
+  // Disallow script-capable protocols and SVG/HTML data URIs.
+  if (/^(javascript|vbscript):/i.test(trimmed)) return null;
+
+  // Only allow common raster data images. SVG data URIs are intentionally rejected
+  // because SVG can contain active script/content and is not needed by the media layer.
+  const safeDataImage = /^data:image\/(?:png|jpe?g|gif|webp|avif);base64,/i.test(trimmed);
+  if (/^data:/i.test(trimmed) && !safeDataImage) return null;
+
+  // Allow HTTPS or local/asset paths.
+  if (/^(https?:|\/|\.\/|assets\/|images\/)/i.test(trimmed) || safeDataImage) {
     return trimmed.replace(/"/g, '%22').replace(/'/g, '%27').replace(/</g, '%3C').replace(/>/g, '%3E');
   }
   return null;
@@ -58,10 +64,26 @@ export function getBiomechanicalIllustration(movementPattern = 'squat', primaryM
   const primaryMuscle = typeof musclesArray[0] === 'string' ? musclesArray[0] : 'core';
   const escapedPattern = escapeHtml(safePattern);
 
+  // Normalize canonical taxonomy patterns into visual families. This prevents
+  // valid patterns such as cardio/mobility/rotational/carry/isometric from
+  // silently falling through to the squat illustration.
+  let visualPattern = safePattern;
+  if (visualPattern === 'isometric') {
+    visualPattern = primaryMuscle === 'core' ? 'core' : 'isolation';
+  } else if (visualPattern === 'rotational') {
+    visualPattern = 'rotational';
+  } else if (visualPattern === 'cardio') {
+    visualPattern = 'cardio';
+  } else if (visualPattern === 'mobility') {
+    visualPattern = 'mobility';
+  } else if (visualPattern === 'carry') {
+    visualPattern = 'carry';
+  }
+
   // Base SVG wrapper styles
   const baseSvgAttrs = `viewBox="0 0 160 120" fill="none" xmlns="http://www.w3.org/2000/svg" class="exercise-bio-svg" role="img" aria-label="${escapedPattern} biomechanical movement illustration"`;
 
-  switch (safePattern) {
+  switch (visualPattern) {
     case 'horizontal-push':
       // Push-Up / Bench Press: Horizontal torso, flexing elbows, chest drive
       return `
@@ -206,6 +228,58 @@ export function getBiomechanicalIllustration(movementPattern = 'squat', primaryM
           <circle cx="78" cy="85" r="5.5" class="bio-muscle-pulse" fill="var(--color-primary, #FF542E)"/>
           <!-- Biomechanical isometric compression markers -->
           <path d="M78 74 L78 94" stroke="var(--color-primary, #FF542E)" stroke-width="1.8" stroke-dasharray="2 2"/>
+        </svg>
+      `;
+
+    case 'rotational':
+      return `
+        <svg ${baseSvgAttrs}>
+          <line x1="16" y1="104" x2="144" y2="104" stroke="rgba(255,255,255,0.2)" stroke-width="2" stroke-linecap="round"/>
+          <path class="bio-path-body" d="M80 42 L80 78 L72 104 M80 78 L88 104" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+          <circle cx="80" cy="34" r="6.5" fill="currentColor"/>
+          <path class="bio-path-limb" d="M80 50 L60 64 L72 72" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+          <path class="bio-path-limb" d="M80 50 L100 60 L88 70" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="80" cy="64" r="5" class="bio-muscle-pulse" fill="var(--color-primary, #FF542E)"/>
+          <path class="bio-motion-arrow" d="M58 52 C48 64 54 78 68 82" stroke="var(--color-primary, #FF542E)" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      `;
+
+    case 'cardio':
+      return `
+        <svg ${baseSvgAttrs}>
+          <line x1="16" y1="104" x2="144" y2="104" stroke="rgba(255,255,255,0.2)" stroke-width="2" stroke-linecap="round"/>
+          <path class="bio-path-body" d="M78 48 L72 74 L62 102 M72 74 L92 98" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="82" cy="40" r="6.5" fill="currentColor"/>
+          <path class="bio-path-limb" d="M76 52 L58 64 L48 54" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+          <path class="bio-path-limb" d="M80 52 L98 62 L110 50" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="68" cy="72" r="4.5" class="bio-muscle-pulse" fill="var(--color-primary, #FF542E)"/>
+          <path class="bio-motion-arrow" d="M112 44 L128 34 M112 54 L132 54" stroke="var(--color-primary, #FF542E)" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      `;
+
+    case 'carry':
+      return `
+        <svg ${baseSvgAttrs}>
+          <line x1="16" y1="104" x2="144" y2="104" stroke="rgba(255,255,255,0.2)" stroke-width="2" stroke-linecap="round"/>
+          <path class="bio-path-body" d="M80 46 L80 80 L72 104 M80 80 L88 104" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+          <circle cx="80" cy="36" r="6.5" fill="currentColor"/>
+          <path class="bio-path-limb" d="M80 48 L62 70 L58 94 M80 48 L98 70 L102 94" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+          <rect x="52" y="94" width="12" height="7" rx="2" fill="rgba(255,255,255,0.6)"/>
+          <rect x="96" y="94" width="12" height="7" rx="2" fill="rgba(255,255,255,0.6)"/>
+          <circle cx="80" cy="62" r="4.5" class="bio-muscle-pulse" fill="var(--color-primary, #FF542E)"/>
+          <path class="bio-motion-arrow" d="M116 82 L132 82" stroke="var(--color-primary, #FF542E)" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      `;
+
+    case 'mobility':
+      return `
+        <svg ${baseSvgAttrs}>
+          <line x1="16" y1="104" x2="144" y2="104" stroke="rgba(255,255,255,0.2)" stroke-width="2" stroke-linecap="round"/>
+          <path class="bio-path-body" d="M76 48 L76 76 L66 102 M76 76 L88 102" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+          <circle cx="76" cy="38" r="6.5" fill="currentColor"/>
+          <path class="bio-path-limb" d="M76 50 L56 54 L44 42 M76 50 L96 54 L108 42" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="76" cy="62" r="4.5" class="bio-muscle-pulse" fill="var(--color-primary, #FF542E)"/>
+          <path class="bio-motion-arrow" d="M40 30 C54 18 98 18 112 30" stroke="var(--color-primary, #FF542E)" stroke-width="2" stroke-linecap="round"/>
         </svg>
       `;
 

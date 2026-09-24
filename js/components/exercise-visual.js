@@ -10,7 +10,7 @@ const PATTERN_LABELS = {
   'squat': 'SQUAT', 'horizontal-push': 'PUSH', 'vertical-push': 'PRESS',
   'horizontal-pull': 'ROW', 'vertical-pull': 'PULL', 'hinge': 'HINGE',
   'lunge': 'LUNGE', 'isolation': 'ISOLATION', 'core': 'CORE',
-  'timed': 'CARDIO', 'rotation': 'ROTATION', 'carry': 'CARRY', 'stretch': 'MOBILITY'
+  'cardio': 'CARDIO', 'rotational': 'ROTATION', 'isometric': 'ISOMETRIC', 'carry': 'CARRY', 'mobility': 'MOBILITY'
 };
 
 function safePattern(exercise) {
