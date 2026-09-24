@@ -1,0 +1,18 @@
+{
+  "version": "0.1.0",
+  "status": "prototype-reference",
+  "visualDirection": "clean-fitness-3d",
+  "exercises": [
+    "air-squat",
+    "push-up",
+    "pull-up",
+    "barbell-bench-press",
+    "bicep-curl",
+    "shoulder-press",
+    "walking-lunge",
+    "forearm-plank"
+  ],
+  "sourceNote": "Generated Kinetix visual prototypes; not final production media.",
+  "runtimeIntegration": false,
+  "nextGate": "visual QA before production promotion"
+}
