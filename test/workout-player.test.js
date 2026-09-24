@@ -568,7 +568,7 @@ const historyO = getWorkoutHistory();
 assert(historyO.filter(h => h.sessionId === sessionO.sessionId).length === 1, '12.P.1 Exactly one history record stored for session');
 
 // Requirement Q: Corrupted history handling
-localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify([null, "corrupted", { invalid: true }, { sessionId: "valid-1", title: "Test" }]));
+localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify([null, "corrupted", { invalid: true }, { sessionId: "valid-1", title: "Test", completedAt: "2026-09-01T10:00:00.000Z" }]));
 const sanitizedHistory = getWorkoutHistory();
 assert(sanitizedHistory.length === 1, '12.Q.1 Sanitized history filters out invalid records and retains valid entry');
 assert(sanitizedHistory[0].sessionId === 'valid-1', '12.Q.2 Retained record has valid sessionId');

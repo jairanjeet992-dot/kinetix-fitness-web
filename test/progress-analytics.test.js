@@ -233,8 +233,8 @@ test('1.7 Old Phase 3.1 history records loaded and sanitized with backward compa
   assert.strictEqual(sanitized.durationSeconds, 2700);
   assert.strictEqual(sanitized.setsCompleted, 15);
   assert.strictEqual(sanitized.exercisesCompleted, 5);
-  assert.strictEqual(sanitized.workoutGoal, 'build-muscle', 'Default goal assigned');
-  assert.strictEqual(sanitized.workoutDifficulty, 'intermediate', 'Default difficulty assigned');
+  assert.strictEqual(sanitized.workoutGoal, null, 'Unspecified goal preserved as null (never fabricated)');
+  assert.strictEqual(sanitized.workoutDifficulty, null, 'Unspecified difficulty preserved as null (never fabricated)');
   assert(sanitized.trainingLoad > 0, 'Training load computed for legacy record');
 });
 
@@ -433,6 +433,14 @@ test('3.5 Load tier classification is accurate', () => {
   assert.strictEqual(getLoadTierLabel(250), 'Intense');
 });
 
+test('3.6 Unknown or null difficulty uses deterministic neutral multiplier 1.0', () => {
+  // With sets=10 and duration=1200s (20m):
+  // (10 * 5 * 1.0) + (20 * 0.5) = 50 + 10 = 60
+  assert.strictEqual(calculateSessionTrainingLoad({ setsCompleted: 10, durationSeconds: 1200, workoutDifficulty: null }), 60);
+  assert.strictEqual(calculateSessionTrainingLoad({ setsCompleted: 10, durationSeconds: 1200, workoutDifficulty: undefined }), 60);
+  assert.strictEqual(calculateSessionTrainingLoad({ setsCompleted: 10, durationSeconds: 1200, workoutDifficulty: 'unknown_tier' }), 60);
+});
+
 // =========================================================================
 // SUITE 4: MUSCLE GROUP ANALYTICS
 // =========================================================================
@@ -479,6 +487,21 @@ test('4.3 Muscle engagement percentages sum to 100% when data exists', () => {
   const analytics = computeProgressAnalytics(records, null, new Date('2026-09-24T12:00:00'));
   const sumPercent = analytics.muscles.distribution.reduce((acc, m) => acc + m.percentage, 0);
   assert(sumPercent >= 98 && sumPercent <= 102, `Percentages sum to ~100% (actual: ${sumPercent})`);
+});
+
+test('4.4 Muscle attribution distinguishes estimated status and does not invent fake volume when exercises are missing', () => {
+  // Record without completedExerciseIds should attribute 0 sets to muscles (no fake volume)
+  const emptyExRecord = [{
+    sessionId: 's-no-ex',
+    completedAt: '2026-09-24T10:00:00',
+    setsCompleted: 15,
+    durationSeconds: 1800,
+    completedExerciseIds: []
+  }];
+  const analytics = computeProgressAnalytics(emptyExRecord, null, new Date('2026-09-24T12:00:00'));
+  assert.strictEqual(analytics.muscles.isEstimated, true, 'Flags estimated attribution');
+  const totalStimulusSets = analytics.muscles.distribution.reduce((acc, m) => acc + m.totalSets, 0);
+  assert.strictEqual(totalStimulusSets, 0, 'Zero muscle sets attributed when exercise list is empty (no fake volume)');
 });
 
 // =========================================================================
@@ -566,45 +589,74 @@ test('6.3 computeSessionMilestones extracts real verifiable records only', () =>
 // =========================================================================
 console.log('\nTest Suite 7: Data Normalization & Schema Tolerance');
 
-test('7.1 Missing optional fields safely normalized with defaults', () => {
+test('7.1 Missing optional fields (calories, goal, difficulty) safely preserved as null', () => {
   const record = sanitizeHistoryRecord({
     sessionId: 'session-minimal',
+    completedAt: '2026-09-24T10:00:00.000Z',
     durationSeconds: 1200,
     setsCompleted: 6
   });
   assert(record !== null);
-  assert.strictEqual(record.workoutGoal, 'build-muscle');
-  assert.strictEqual(record.workoutDifficulty, 'intermediate');
+  assert.strictEqual(record.workoutGoal, null, 'Unspecified goal preserved as null (never fabricated)');
+  assert.strictEqual(record.workoutDifficulty, null, 'Unspecified difficulty preserved as null (never fabricated)');
+  assert.strictEqual(record.estimatedCalories, null, 'Unspecified calories preserved as null (never fabricated)');
   assert.strictEqual(record.completionPercentage, 100);
   assert.deepStrictEqual(record.completedExerciseIds, []);
-  assert(record.estimatedCalories > 0);
 });
 
-test('7.2 Invalid numeric values safely clamped or replaced', () => {
+test('7.2 Missing or invalid completedAt timestamp safely rejects record', () => {
+  // Missing completedAt
+  const noTs = sanitizeHistoryRecord({
+    sessionId: 'session-no-ts',
+    durationSeconds: 600,
+    setsCompleted: 4
+  });
+  assert.strictEqual(noTs, null, 'Missing completedAt returns null safely');
+
+  // Invalid date string
+  const invalidTs = sanitizeHistoryRecord({
+    sessionId: 'session-bad-ts',
+    completedAt: 'not-a-valid-date-string',
+    durationSeconds: 600
+  });
+  assert.strictEqual(invalidTs, null, 'Invalid completedAt string returns null safely');
+
+  // Empty string
+  const emptyTs = sanitizeHistoryRecord({
+    sessionId: 'session-empty-ts',
+    completedAt: '   ',
+    durationSeconds: 600
+  });
+  assert.strictEqual(emptyTs, null, 'Whitespace completedAt string returns null safely');
+});
+
+test('7.3 Invalid numeric values safely clamped without inventing calories', () => {
   const record = sanitizeHistoryRecord({
     sessionId: 'session-invalid-nums',
+    completedAt: '2026-09-24T10:00:00.000Z',
     durationSeconds: -500,
     setsCompleted: NaN,
     estimatedCalories: 'not-a-number'
   });
   assert(record !== null);
-  assert(record.durationSeconds >= 60, 'Negative duration safely defaulted');
+  assert.strictEqual(record.durationSeconds, 0, 'Negative duration safely clamped to 0');
   assert.strictEqual(record.setsCompleted, 0, 'NaN sets safely defaulted to 0');
-  assert(record.estimatedCalories > 0, 'Invalid calories re-estimated');
+  assert.strictEqual(record.estimatedCalories, null, 'Invalid calories preserved as null, not fabricated');
 });
 
-test('7.3 Mixed list of valid and corrupted records safely sanitized', () => {
+test('7.4 Mixed list of valid and corrupted records safely sanitized', () => {
   _resetSessionStorageForTesting();
   const list = [
     null,
     "garbage-string",
     { invalid: true },
-    { sessionId: 'ok-1', setsCompleted: 5, durationSeconds: 600 },
-    { sessionId: 'ok-2', setsCompleted: 8, durationSeconds: 900 }
+    { sessionId: 'no-timestamp', setsCompleted: 5 }, // Missing completedAt -> rejected
+    { sessionId: 'ok-1', completedAt: '2026-09-24T09:00:00.000Z', setsCompleted: 5, durationSeconds: 600 },
+    { sessionId: 'ok-2', completedAt: '2026-09-24T10:00:00.000Z', setsCompleted: 8, durationSeconds: 900 }
   ];
   localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(list));
   const history = getWorkoutHistory();
-  assert.strictEqual(history.length, 2, 'Dropped 3 malformed items and retained 2 valid');
+  assert.strictEqual(history.length, 2, 'Dropped 4 malformed/missing-timestamp items and retained 2 valid');
   assert.strictEqual(history[0].sessionId, 'ok-1');
   assert.strictEqual(history[1].sessionId, 'ok-2');
 });

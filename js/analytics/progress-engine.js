@@ -225,11 +225,13 @@ export function computeProgressAnalytics(historyRecords = [], profile = null, re
     const normalizedGoal = rawGoal ? normalizeGoal(rawGoal) : 'other';
     goalCounts[normalizedGoal] = (goalCounts[normalizedGoal] || 0) + 1;
 
-    // F. Exercises and Muscle Attribution
+    // F. Exercises and Muscle Attribution (Proportional Estimation)
+    // When explicit per-exercise set tracking is unavailable, volume is attributed
+    // proportionally across completed movements rather than fabricated as exact logs.
     const workoutSets = validSets;
-    const setsPerEx = completedExList.length > 0
+    const setsPerEx = completedExList.length > 0 && workoutSets > 0
       ? Math.max(1, Math.round(workoutSets / completedExList.length))
-      : 3;
+      : 0;
 
     completedExList.forEach(exId => {
       if (!exId || typeof exId !== 'string') return;
@@ -380,7 +382,10 @@ export function computeProgressAnalytics(historyRecords = [], profile = null, re
         exercisesCompleted: completedCount,
         trainingLoad: load,
         completionPercentage: Number(r.completionPercentage || 100),
-        goal: r.workoutGoal || r.goal || 'General'
+        goal: r.workoutGoal || r.goal || null,
+        estimatedCalories: (typeof r.estimatedCalories === 'number' && Number.isFinite(r.estimatedCalories) && r.estimatedCalories > 0)
+          ? Math.round(r.estimatedCalories)
+          : null
       };
     });
 
@@ -418,7 +423,9 @@ export function computeProgressAnalytics(historyRecords = [], profile = null, re
     muscles: {
       distribution: muscleDistribution,
       topMuscles,
-      mostTrainedMuscle
+      mostTrainedMuscle,
+      isEstimated: true,
+      attributionMethod: 'proportional-session-sets'
     },
     exercises: {
       topExercises,

@@ -144,21 +144,24 @@ Kinetix adheres strictly to honest fitness tracking:
 
 ---
 
-## 6. Data Validation & Schema Tolerance
+## 6. Data Validation & Schema Tolerance (Phase 4.1 Hardened)
 
-The `sanitizeHistoryRecord()` function guarantees corrupt data resilience:
-- **Missing Timestamps**: If `completedAt` or `startedAt` is missing, the record safely adopts the partner timestamp or current ISO string.
+The `sanitizeHistoryRecord()` function guarantees corrupt data resilience without fabricating missing information:
+- **Missing / Invalid Timestamps**: Records without a valid `completedAt` timestamp are rejected safely (`null`). Current time is **never** used as a replacement for missing timestamps.
+- **Missing Calories**: Calories are preserved as `null` if unrecorded. They are **never** fabricated or synthesized.
+- **Missing Goal or Difficulty**: Preserved as `null`. Neutral multiplier `1.0` is used deterministically for training load when difficulty is missing or unknown.
+- **Muscle Volume Attribution**: Clearly marked with `isEstimated: true`. Zero sets are attributed when completed exercise arrays are missing (prevents fake volume).
 - **Corrupt Storage**: Unparseable JSON in `localStorage` logs a warning and returns an empty array `[]` rather than crashing the view.
 - **Invalid Numbers**: Negative durations, negative sets, or `NaN` values are clamped to safe defaults.
-- **Malformed Arrays**: Non-array exercise fields are sanitized to empty arrays.
-- **Fatal Rejection**: Records lacking a non-empty `sessionId` string are rejected.
+- **Fatal Rejection**: Records lacking a non-empty `sessionId` string or valid `completedAt` timestamp are rejected.
 
 ---
 
 ## 7. Migration & Backward Compatibility Strategy
 
-- **Phase 3.1 Records**: Stored records with legacy field names (`durationSeconds`, `setsCompleted`, `exercisesCompleted`, `skippedExercises`) are read and enriched on retrieval.
+- **Phase 3.1 Records**: Stored records with legacy field names (`durationSeconds`, `setsCompleted`, `exercisesCompleted`, `skippedExercises`) are read and enriched on retrieval with `null` for unrecorded fields.
 - **Idempotence**: No destructive database migration or key renaming is required.
+- **Removal of Mock Data**: The legacy mock file `js/data/progress.js` is deprecated and contains an empty frozen object to prevent any production UI from displaying fabricated metrics.
 - **Storage Keys**: `kinetix_workout_history` remains the stable storage key.
 
 ---

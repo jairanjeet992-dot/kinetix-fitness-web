@@ -235,9 +235,9 @@ function renderPopulatedState(container, analytics, profile) {
         <div class="section-header" style="margin-bottom: var(--space-4);">
           <div>
             <h2 class="text-h2">Muscle Engagement Ratio</h2>
-            <p class="section-subtitle">Volume distribution across canonical muscle groups</p>
+            <p class="section-subtitle">Estimated volume distribution based on completed exercises</p>
           </div>
-          ${muscles.mostTrainedMuscle ? `<span class="badge badge-secondary">Top: ${muscles.mostTrainedMuscle.label}</span>` : ''}
+          <span class="badge badge-secondary">${muscles.mostTrainedMuscle ? `Top: ${muscles.mostTrainedMuscle.label}` : 'Estimated'}</span>
         </div>
 
         <div class="flex flex-col gap-3">
@@ -250,7 +250,7 @@ function renderPopulatedState(container, analytics, profile) {
                 <div class="muscle-bar-row">
                   <div class="muscle-bar-header">
                     <span style="font-weight: 600; color: var(--color-text-primary);">${m.label}</span>
-                    <span style="font-weight: 700; color: var(--color-text-secondary);">${m.totalSets} sets &bull; ${m.percentage}%</span>
+                    <span style="font-weight: 700; color: var(--color-text-secondary);">~${m.totalSets} est. sets &bull; ${m.percentage}%</span>
                   </div>
                   <div class="progress-track" style="height: 10px; background-color: var(--color-surface-secondary); border-radius: var(--radius-pill); overflow: hidden;">
                     <div class="progress-fill" style="width: ${m.percentage}%; background-color: ${color}; height: 100%; border-radius: var(--radius-pill); transition: width var(--transition-slow);"></div>
@@ -373,7 +373,7 @@ function renderPopulatedState(container, analytics, profile) {
               </div>
               <div style="text-align: right; flex-shrink: 0;">
                 <span class="badge badge-success" style="margin-bottom: 2px;">Completed</span>
-                <div class="text-caption text-muted">${item.durationMinutes}m &bull; Load ${item.trainingLoad}</div>
+                <div class="text-caption text-muted">${item.durationMinutes}m &bull; Load ${item.trainingLoad}${item.estimatedCalories ? ` &bull; ${item.estimatedCalories} kcal` : ''}</div>
               </div>
             </div>
           `).join('')}

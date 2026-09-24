@@ -579,6 +579,12 @@ export function previousExercise(session, workout) {
  * Handles backward compatibility with Phase 3.1 records, sanitizes data types,
  * prevents corrupt values from crashing the application, and computes deterministic training load.
  *
+ * Data Integrity Invariants (Phase 4.1):
+ * - Records with missing or invalid timestamps are rejected safely (returns null).
+ * - Current time is NEVER used as a replacement for missing timestamps.
+ * - Missing calories are NEVER fabricated; preserved as null.
+ * - Missing goal or difficulty are preserved as null (never defaulted to fake values).
+ *
  * @param {Object} raw - Raw history record.
  * @returns {Object|null} Sanitized record, or null if fatally invalid.
  */
@@ -591,6 +597,23 @@ export function sanitizeHistoryRecord(raw) {
     : null;
   if (!sessionId) return null;
 
+  // Timestamps validation: MUST have valid completedAt timestamp (never fabricate with now)
+  const rawCompletedAt = raw.completedAt;
+  if (!rawCompletedAt || typeof rawCompletedAt !== 'string') return null;
+  const completedTime = new Date(rawCompletedAt).getTime();
+  if (isNaN(completedTime) || completedTime <= 0) return null; // Reject missing/invalid timestamp
+
+  const completedAt = rawCompletedAt;
+
+  // startedAt validation: if valid use it, otherwise match completedAt (never fabricate with now)
+  let startedAt = completedAt;
+  if (raw.startedAt && typeof raw.startedAt === 'string') {
+    const startedTime = new Date(raw.startedAt).getTime();
+    if (!isNaN(startedTime) && startedTime > 0) {
+      startedAt = raw.startedAt;
+    }
+  }
+
   const workoutId = typeof raw.workoutId === 'string' && raw.workoutId.trim().length > 0
     ? raw.workoutId.trim()
     : 'workout-custom';
@@ -600,23 +623,6 @@ export function sanitizeHistoryRecord(raw) {
     : (typeof raw.workoutTitle === 'string' && raw.workoutTitle.trim().length > 0
         ? raw.workoutTitle.trim()
         : 'Workout Session');
-
-  // Timestamps validation with safe defaults
-  let startedAt = raw.startedAt;
-  let completedAt = raw.completedAt;
-
-  const validCompleted = completedAt && !isNaN(new Date(completedAt).getTime());
-  const validStarted = startedAt && !isNaN(new Date(startedAt).getTime());
-
-  const nowIso = new Date().toISOString();
-  if (validCompleted && !validStarted) {
-    startedAt = completedAt;
-  } else if (!validCompleted && validStarted) {
-    completedAt = startedAt;
-  } else if (!validCompleted && !validStarted) {
-    completedAt = nowIso;
-    startedAt = nowIso;
-  }
 
   // Duration normalization
   let durationSeconds = 0;
@@ -630,7 +636,7 @@ export function sanitizeHistoryRecord(raw) {
     durationSeconds = Math.round(raw.actualDurationMinutes * 60);
   } else {
     const diff = Math.round((new Date(completedAt).getTime() - new Date(startedAt).getTime()) / 1000);
-    durationSeconds = diff > 0 ? diff : 60;
+    durationSeconds = diff > 0 ? diff : 0;
   }
 
   // Sets normalization
@@ -660,20 +666,22 @@ export function sanitizeHistoryRecord(raw) {
     ? Math.max(0, Math.round(Number(raw.skippedExercises)))
     : skippedExerciseIds.length;
 
-  // Calories
+  // Calories: Never fabricate calories if missing; preserve as null
   const rawCalories = Number(raw.estimatedCalories);
   const estimatedCalories = Number.isFinite(rawCalories) && rawCalories > 0
     ? Math.round(rawCalories)
-    : Math.max(10, Math.round((durationSeconds / 60) * 7.5));
+    : null;
 
-  // Goal & Difficulty
-  const workoutGoal = typeof raw.workoutGoal === 'string' && raw.workoutGoal.trim().length > 0
+  // Goal & Difficulty: Never fabricate fake defaults; preserve as null if unknown
+  const rawGoal = typeof raw.workoutGoal === 'string' && raw.workoutGoal.trim().length > 0
     ? raw.workoutGoal.trim().toLowerCase()
-    : (typeof raw.goal === 'string' && raw.goal.trim().length > 0 ? raw.goal.trim().toLowerCase() : 'build-muscle');
+    : (typeof raw.goal === 'string' && raw.goal.trim().length > 0 ? raw.goal.trim().toLowerCase() : null);
+  const workoutGoal = rawGoal || null;
 
-  const workoutDifficulty = typeof raw.workoutDifficulty === 'string' && raw.workoutDifficulty.trim().length > 0
+  const rawDifficulty = typeof raw.workoutDifficulty === 'string' && raw.workoutDifficulty.trim().length > 0
     ? raw.workoutDifficulty.trim().toLowerCase()
-    : (typeof raw.difficulty === 'string' && raw.difficulty.trim().length > 0 ? raw.difficulty.trim().toLowerCase() : 'intermediate');
+    : (typeof raw.difficulty === 'string' && raw.difficulty.trim().length > 0 ? raw.difficulty.trim().toLowerCase() : null);
+  const workoutDifficulty = rawDifficulty || null;
 
   // Completion percentage
   const rawPercent = Number(raw.completionPercentage);
@@ -681,7 +689,7 @@ export function sanitizeHistoryRecord(raw) {
     ? Math.round(rawPercent)
     : (totalSets > 0 ? Math.min(100, Math.round((setsCompleted / totalSets) * 100)) : 100);
 
-  // Requested duration
+  // Requested duration: preserve null if missing
   const requestedDuration = Number.isFinite(Number(raw.requestedDuration))
     ? Number(raw.requestedDuration)
     : (Number.isFinite(Number(raw.requestedDurationMinutes)) ? Number(raw.requestedDurationMinutes) : null);
@@ -741,9 +749,9 @@ export function completeWorkout(session, workout) {
   }
 
   const durationSec = Math.max(1, session.elapsedSeconds || 1);
-  const estCalories = (workout && typeof workout.estimatedCalories === 'number')
-    ? workout.estimatedCalories
-    : Math.max(10, Math.round((durationSec / 60) * 7.5));
+  const estCalories = (workout && typeof workout.estimatedCalories === 'number' && Number.isFinite(workout.estimatedCalories) && workout.estimatedCalories > 0)
+    ? Math.round(workout.estimatedCalories)
+    : null;
 
   const completedSetsCount = Math.max(0, session.completedSets || 0);
   const completedIds = Array.isArray(session.completedExercises) ? [...session.completedExercises] : [];
@@ -768,8 +776,8 @@ export function completeWorkout(session, workout) {
     totalSets: Math.max(totalRoutineSets, completedSetsCount),
     setsCompleted: completedSetsCount,
     completedSets: completedSetsCount,
-    workoutGoal: (workout && workout.goal) || session.workoutGoal || 'build-muscle',
-    workoutDifficulty: (workout && workout.difficulty) || session.workoutDifficulty || 'intermediate',
+    workoutGoal: (workout && workout.goal) || session.workoutGoal || null,
+    workoutDifficulty: (workout && workout.difficulty) || session.workoutDifficulty || null,
     estimatedCalories: estCalories,
     completionPercentage: totalRoutineSets > 0 ? Math.min(100, Math.round((completedSetsCount / totalRoutineSets) * 100)) : 100
   };
