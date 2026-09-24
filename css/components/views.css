@@ -403,9 +403,12 @@
 }
 
 .calendar-status-dot.status-completed { background-color: var(--color-success); }
-.calendar-status-dot.status-today { background-color: var(--color-primary); }
-.calendar-status-dot.status-upcoming { background-color: var(--color-border-strong); }
-.calendar-status-dot.status-rest { background-color: transparent; border: 1.5px solid var(--color-text-muted); }
+.calendar-status-dot.status-today, .calendar-status-dot.status-ready { background-color: var(--color-primary); }
+.calendar-status-dot.status-upcoming, .calendar-status-dot.status-planned { background-color: var(--color-border-strong); }
+.calendar-status-dot.status-missed { background-color: var(--color-error, #e74c3c); }
+.calendar-status-dot.status-skipped { background-color: var(--color-warning, #f39c12); }
+.calendar-status-dot.status-rescheduled { background-color: #3498db; }
+.calendar-status-dot.status-rest, .calendar-status-dot.status-recovery { background-color: transparent; border: 1.5px solid var(--color-text-muted); }
 
 /* ==========================================================================
    Progress Screen: CSS/SVG Bar Chart
@@ -660,14 +663,14 @@
 
 .exercise-media-meta-overlay .badge {
   pointer-events: auto;
-  backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 
 .exercise-cues-drawer {
   background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
   border-radius: var(--radius-md);
   padding: var(--space-2) var(--space-3);
   margin-top: auto;
@@ -722,6 +725,43 @@
   justify-content: center;
   gap: var(--space-3);
   margin: var(--space-4) 0 var(--space-2);
+  flex-wrap: wrap;
+}
+
+.player-reps-display {
+  font-size: 3.25rem;
+  font-weight: var(--font-weight-bold);
+  font-family: var(--font-family-mono);
+  letter-spacing: -0.03em;
+  color: var(--color-primary);
+  line-height: 1.1;
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.player-instruction-list {
+  text-align: left;
+  max-width: 480px;
+  width: 100%;
+  margin: var(--space-3) auto;
+  padding-left: var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body-sm);
+  line-height: 1.5;
+}
+
+.player-instruction-list li {
+  margin-bottom: 6px;
+}
+
+.player-summary-card {
+  background-color: var(--color-surface);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-6);
+  text-align: center;
+  max-width: 580px;
+  margin: 0 auto;
 }
 
 /* Rest State Stage */

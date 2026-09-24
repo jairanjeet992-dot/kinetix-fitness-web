@@ -130,8 +130,19 @@ export function getProgressData() {
   if (stored && typeof stored === 'object' && stored.overview) {
     return stored;
   }
-  // Deep clone initial PROGRESS_DATA
-  const initial = JSON.parse(JSON.stringify(PROGRESS_DATA));
+  // Safe default progress structure (handles hardened empty PROGRESS_DATA)
+  const base = (PROGRESS_DATA && PROGRESS_DATA.overview) ? PROGRESS_DATA : {
+    overview: {
+      totalWorkouts: 0,
+      totalMinutes: 0,
+      caloriesBurnedTotal: 0,
+      currentStreakDays: 0
+    },
+    weeklyActivity: [],
+    recentHistory: [],
+    personalRecords: []
+  };
+  const initial = JSON.parse(JSON.stringify(base));
   safeSet(PROGRESS_STORAGE_KEY, initial);
   return initial;
 }

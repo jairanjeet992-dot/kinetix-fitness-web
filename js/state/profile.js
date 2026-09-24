@@ -207,12 +207,12 @@ export function getProfile() {
   return {
     ...s,
     name: s.name ? s.name.trim() : '',
-    goal: s.goal || 'Build Muscle',
-    fitnessLevel: s.fitnessLevel || 'Beginner',
+    goal: s.goal || null,
+    fitnessLevel: s.fitnessLevel || null,
     focusAreas: s.targetMuscles || [],
     equipment: s.equipment || [],
-    trainingDays: s.trainingDays || '4 days',
-    workoutDuration: s.workoutDuration || '20–30 min',
+    trainingDays: s.trainingDays || null,
+    workoutDuration: s.workoutDuration || null,
     stats: {
       age: s.age !== null && s.age !== undefined && s.age !== '' ? s.age : '',
       height: s.height ? formatHeight(s.height, s.heightUnit || 'cm') : '',

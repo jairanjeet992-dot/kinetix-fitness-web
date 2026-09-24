@@ -7,6 +7,10 @@ import { WORKOUTS, getFeaturedWorkout, getRecommendedWorkouts, registerGenerated
 import { WEEKLY_PLAN } from '../data/plans.js';
 import { getProfile } from '../state/profile.js';
 import { generateWorkout } from '../engine/workout-generator.js';
+import { generateAdaptiveWorkout } from '../engine/adaptive-workout-generator.js';
+import { getActiveSession, clearActiveSession } from '../state/workout-session.js';
+import { getActivePlan, SESSION_TYPE } from '../state/training-plan.js';
+import { toDateString } from '../engine/plan-generator.js';
 
 let currentVariationSeed = 0;
 
@@ -19,8 +23,8 @@ export function renderHome(container) {
   const userName = profile.name || 'Athlete';
   const userInitials = userName.split(' ').map(n => n[0]).filter(Boolean).join('').toUpperCase() || 'A';
 
-  // Generate today's personalized session from workout engine
-  const generatedResult = generateWorkout(profile, currentVariationSeed);
+  // Generate today's personalized session from adaptive workout engine
+  const generatedResult = generateAdaptiveWorkout(profile, currentVariationSeed);
   let todayWorkout = null;
   if (generatedResult.ok) {
     todayWorkout = generatedResult;
@@ -28,6 +32,18 @@ export function renderHome(container) {
   } else {
     // Graceful fallback to static featured if engine cannot generate
     todayWorkout = getFeaturedWorkout();
+  }
+
+  // Connect to long-term training plan if available
+  const activePlan = getActivePlan();
+  const todayStr = toDateString(new Date());
+  let todayPlannedSession = null;
+  if (activePlan && activePlan.weeks && activePlan.weeks[0]) {
+    todayPlannedSession = (activePlan.weeks[0].sessions || []).find(s => s.scheduledDate === todayStr) || null;
+  }
+  if (todayWorkout && todayPlannedSession && todayPlannedSession.sessionType === SESSION_TYPE.TRAINING) {
+    todayWorkout.plannedSessionId = todayPlannedSession.plannedSessionId;
+    todayWorkout.planId = todayPlannedSession.planId;
   }
 
   // Personalized preview titles
@@ -45,6 +61,8 @@ export function renderHome(container) {
     ? (profile.focusAreas.includes('Full Body') ? 'Full Body' : `${profile.focusAreas.join(' & ')} focused`)
     : 'Full Body';
   const durationText = `${todayWorkout.durationMin || todayWorkout.durationMinutes || 30} min session`;
+  const activeSession = getActiveSession();
+  const hasActiveSession = activeSession && !activeSession.isCompleted;
 
   container.innerHTML = `
     <div class="view-enter">
@@ -65,6 +83,34 @@ export function renderHome(container) {
         </div>
       </div>
 
+      <!-- Incomplete Workout Session Recovery Banner -->
+      ${hasActiveSession ? `
+        <section class="card" style="background: linear-gradient(135deg, rgba(255, 84, 46, 0.12) 0%, rgba(255, 84, 46, 0.04) 100%); border: 1px solid var(--color-primary); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-5); border-radius: var(--radius-lg);">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-3);">
+            <div>
+              <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: 4px;">
+                <span class="badge badge-warning">IN PROGRESS</span>
+                <span class="text-caption text-muted">Session paused</span>
+              </div>
+              <h3 class="text-h3" style="color: var(--color-text-primary); margin-bottom: 2px;">
+                Resume "${activeSession.workoutTitle}"?
+              </h3>
+              <div class="text-body-sm" style="color: var(--color-text-secondary);">
+                Progress: Exercise ${activeSession.currentExerciseIndex + 1} &bull; Set ${activeSession.currentSet} of ${activeSession.totalSets}
+              </div>
+            </div>
+            <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
+              <a href="#player/${activeSession.workoutId}" class="btn btn-primary btn-sm" id="btn-resume-session">
+                Resume Workout &rarr;
+              </a>
+              <button type="button" class="btn btn-ghost btn-sm" id="btn-discard-session" style="color: var(--color-text-secondary);">
+                Discard
+              </button>
+            </div>
+          </div>
+        </section>
+      ` : ''}
+
       <!-- Primary Action: Today's Workout Hero Card -->
       <section class="today-hero-card" id="today-hero-section" aria-labelledby="today-workout-title">
         ${!generatedResult.ok ? `
@@ -84,6 +130,17 @@ export function renderHome(container) {
           <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
             <span class="badge badge-primary">TODAY'S SESSION</span>
             <span class="badge" style="background: rgba(255,255,255,0.08);">${planTitle}</span>
+            ${todayPlannedSession ? `
+              <a href="#plans" class="badge" style="background: rgba(255, 84, 46, 0.15); color: var(--color-primary); text-decoration: none;">
+                Plan: ${todayPlannedSession.sessionType === SESSION_TYPE.REST ? 'Rest Day' : todayPlannedSession.targetFocus}
+              </a>
+            ` : ''}
+            ${todayWorkout.adaptation && todayWorkout.adaptation.applied ? `
+              <span class="badge" style="background: rgba(46, 204, 113, 0.15); color: #2ecc71; border: 1px solid rgba(46, 204, 113, 0.4); font-weight: 600;">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 4px; display: inline-block; vertical-align: middle;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                ADAPTED
+              </span>
+            ` : ''}
           </div>
           <button type="button" class="btn btn-ghost btn-sm" id="btn-regenerate-workout" aria-label="Regenerate routine with alternative exercises" style="padding: 4px 10px; font-size: 13px; color: var(--color-text-secondary);">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
@@ -95,8 +152,24 @@ export function renderHome(container) {
           ${todayWorkout.title}
         </h2>
         <p class="text-body" style="margin-bottom: var(--space-4); max-width: 540px;">
-          ${focusText} sessions calibrated for ${profile.fitnessLevel.toLowerCase()} intensity &bull; ${durationText}.
+          ${focusText} sessions calibrated for ${(profile.fitnessLevel || 'intermediate').toLowerCase()} intensity &bull; ${durationText}.
         </p>
+
+        <!-- Adaptive Training Intelligence Insight Card -->
+        ${todayWorkout.adaptation && todayWorkout.adaptation.applied ? `
+          <div class="adaptive-intelligence-card" style="background: rgba(46, 204, 113, 0.06); border: 1px solid rgba(46, 204, 113, 0.35); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4);">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: 6px;">
+              <div style="display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #2ecc71;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                Adaptive Calibration Applied
+              </div>
+              <span class="badge" style="background: rgba(46, 204, 113, 0.2); color: #2ecc71; font-size: 10px; padding: 2px 8px;">${todayWorkout.adaptation.status}</span>
+            </div>
+            <ul style="margin: 0; padding-left: 18px; color: var(--color-text-secondary); font-size: var(--font-size-body-sm); line-height: 1.45;">
+              ${todayWorkout.adaptation.reasons.map(r => `<li>${r}</li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
 
         <!-- "Why this workout?" Personalization Explanation -->
         ${todayWorkout.explanation ? `
@@ -205,7 +278,7 @@ export function renderHome(container) {
         <div class="section-header">
           <div>
             <h2 class="section-title">Recommended For You</h2>
-            <p class="section-subtitle">Based on your ${profile.fitnessLevel.toLowerCase()} level &bull; ${durationText}</p>
+            <p class="section-subtitle">Based on your ${(profile.fitnessLevel || 'intermediate').toLowerCase()} level &bull; ${durationText}</p>
           </div>
           <a href="#workouts" class="text-caption text-primary-color" style="font-weight: 600;">See All (${WORKOUTS.length}) &rarr;</a>
         </div>
@@ -273,6 +346,20 @@ export function renderHome(container) {
         window.showToast({
           type: 'info',
           message: 'Custom Workout Builder will unlock in Phase 3.'
+        });
+      }
+    });
+  }
+
+  const discardSessionBtn = container.querySelector('#btn-discard-session');
+  if (discardSessionBtn) {
+    discardSessionBtn.addEventListener('click', () => {
+      clearActiveSession();
+      renderHome(container);
+      if (window.showToast) {
+        window.showToast({
+          type: 'info',
+          message: 'Incomplete workout session discarded.'
         });
       }
     });

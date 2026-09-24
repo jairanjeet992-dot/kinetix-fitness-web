@@ -5,9 +5,12 @@
 
 import { getWorkoutById } from '../data/workouts.js';
 import { getExerciseById } from '../data/exercises.js';
-import { showExerciseDetailModal } from '../components/exercise-media.js';
+import { formatWeight } from '../analytics/performance-tracker.js';
+import { getProfile } from '../state/profile.js';
 
 export function renderWorkoutDetail(container, workoutId) {
+  const profile = getProfile();
+  const userUnit = (profile.unit || 'kg').toLowerCase();
   const workout = getWorkoutById(workoutId) || getWorkoutById('metabolic-ignition');
 
   if (!workout) {
@@ -21,8 +24,15 @@ export function renderWorkoutDetail(container, workoutId) {
     return;
   }
 
-  // Resolve full exercise records
-  const exercises = workout.exerciseIds.map(id => getExerciseById(id)).filter(Boolean);
+  // Resolve full exercise records, preserving any attached adaptive parameters
+  const exercises = (workout.exerciseIds || []).map(id => {
+    const fromRoutine = Array.isArray(workout.exercises)
+      ? workout.exercises.find(e => (typeof e === 'object' && e.id === id))
+      : null;
+    const base = getExerciseById(id);
+    if (!base) return null;
+    return fromRoutine ? { ...base, ...fromRoutine } : base;
+  }).filter(Boolean);
 
   container.innerHTML = `
     <div class="view-enter">
@@ -49,6 +59,9 @@ export function renderWorkoutDetail(container, workoutId) {
 
         <div style="padding: var(--space-6);">
           <div style="display: flex; gap: var(--space-2); margin-bottom: var(--space-2); flex-wrap: wrap;">
+            ${workout.adaptation && workout.adaptation.applied ? `
+              <span class="badge" style="background: rgba(46, 204, 113, 0.15); color: #2ecc71; border: 1px solid rgba(46, 204, 113, 0.4); font-weight: 600;">ADAPTED</span>
+            ` : ''}
             <span class="badge">${workout.difficulty}</span>
             <span class="badge">${workout.equipment}</span>
             <span class="badge badge-success">${workout.rounds} Rounds</span>
@@ -85,6 +98,22 @@ export function renderWorkoutDetail(container, workoutId) {
             </div>
           </div>
 
+          <!-- Adaptive Training Intelligence Insight Banner -->
+          ${workout.adaptation && workout.adaptation.applied ? `
+            <div class="card" style="background: rgba(46, 204, 113, 0.06); border-color: rgba(46, 204, 113, 0.35); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-5); border-radius: var(--radius-md);">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: 4px;">
+                <div style="display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #2ecc71;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                  Adaptive Calibration Insights
+                </div>
+                <span class="badge" style="background: rgba(46, 204, 113, 0.2); color: #2ecc71; font-size: 10px;">${workout.adaptation.status}</span>
+              </div>
+              <ul style="margin: 0; padding-left: 18px; color: var(--color-text-secondary); font-size: var(--font-size-body-sm); line-height: 1.45;">
+                ${workout.adaptation.reasons.map(r => `<li>${r}</li>`).join('')}
+              </ul>
+            </div>
+          ` : ''}
+
           <!-- Start Workout Action -->
           <div class="session-actions">
             <a href="#player/${workout.id}" class="btn btn-primary btn-lg" id="btn-start-workout-detail">
@@ -108,55 +137,37 @@ export function renderWorkoutDetail(container, workoutId) {
           </div>
         </div>
 
-        <div class="flex flex-col gap-3" id="workout-detail-sequence-list">
-          ${exercises.map((ex, index) => {
-            const cuePreview = Array.isArray(ex.formCues) && ex.formCues.length > 0
-              ? ex.formCues[0]
-              : (Array.isArray(ex.instructions) && ex.instructions.length > 0 ? ex.instructions[0].split('.')[0] : 'Controlled movement');
-
-            return `
-              <div class="exercise-card card-interactive" data-exercise-id="${ex.id}" role="button" tabindex="0" aria-label="Inspect ${ex.name}">
-                <div class="exercise-thumb" style="background-color: var(--color-surface-secondary);">
-                  <span style="font-weight: 700; color: var(--color-primary); font-size: 1.125rem;">${index + 1}</span>
+        <div class="flex flex-col gap-3">
+          ${exercises.map((ex, index) => `
+            <div class="exercise-card">
+              <div class="exercise-thumb" style="background-color: var(--color-surface-secondary);">
+                <span style="font-weight: 700; color: var(--color-primary); font-size: 1.125rem;">${index + 1}</span>
+              </div>
+              <div class="exercise-info">
+                <div class="exercise-name" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <span>${ex.name}</span>
+                  ${ex.targetWeightKg ? `
+                    <span class="badge" style="background: rgba(46, 204, 113, 0.15); color: #2ecc71; border: 1px solid rgba(46, 204, 113, 0.4); font-size: 11px;">
+                      Target: ${formatWeight(ex.targetWeightKg, userUnit)}
+                    </span>
+                  ` : ''}
                 </div>
-                <div class="exercise-info">
-                  <div class="exercise-name">${ex.name}</div>
-                  <div class="exercise-details">
-                    <strong>${ex.defaultReps}</strong> &bull; Primary: ${ex.primaryMuscle} &bull; ${ex.equipment}
-                  </div>
-                  <div class="text-caption text-muted" style="margin-top: 4px; line-height: 1.3;">
-                    ${cuePreview} &bull; <span style="color: var(--color-primary); font-weight: 500;">Tap to view form cues &rarr;</span>
-                  </div>
+                <div class="exercise-details">
+                  <strong>${ex.targetReps || ex.defaultReps}</strong> &bull; Primary: ${ex.primaryMuscle} &bull; ${ex.equipment}
                 </div>
-                <div class="exercise-action">
-                  <span class="badge">${ex.difficulty}</span>
+                <div class="text-caption text-muted" style="margin-top: 4px; line-height: 1.3;">
+                  ${ex.instructions}
                 </div>
               </div>
-            `;
-          }).join('')}
+              <div class="exercise-action">
+                <span class="badge">${ex.difficulty}</span>
+              </div>
+            </div>
+          `).join('')}
         </div>
       </section>
     </div>
   `;
-
-  // Attach click listeners to exercise sequence cards to open rich detail modal
-  const seqContainer = container.querySelector('#workout-detail-sequence-list');
-  if (seqContainer) {
-    seqContainer.querySelectorAll('.exercise-card').forEach(card => {
-      const openExModal = () => {
-        const exId = card.getAttribute('data-exercise-id');
-        const ex = getExerciseById(exId);
-        if (ex) showExerciseDetailModal(ex);
-      };
-      card.addEventListener('click', openExModal);
-      card.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          openExModal();
-        }
-      });
-    });
-  }
 
   // Bookmark button toast trigger
   const bookmarkBtn = container.querySelector('#btn-bookmark-workout');

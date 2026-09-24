@@ -84,3 +84,11 @@
   color: var(--color-surface);
   border-color: var(--color-primary);
 }
+
+.badge-gold,
+.badge-pr {
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.16), rgba(245, 158, 11, 0.24));
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  font-weight: var(--font-weight-bold);
+}

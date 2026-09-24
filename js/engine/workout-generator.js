@@ -24,6 +24,10 @@ import {
   normalizeEquipmentList,
   FOCUS_AREA_TO_MUSCLES
 } from '../data/taxonomy.js';
+import { validateExerciseDatabase } from '../data/exercise-validator.js';
+
+let dbValidated = false;
+let dbValid = true;
 
 /**
  * Normalizes input profile from onboarding or user settings.
@@ -79,17 +83,22 @@ export function normalizeProfile(rawProfile = {}) {
 
 /**
  * Checks whether an exercise is compatible with the user's available equipment.
- * An exercise is valid if at least one of its required equipment items is in user's gear,
- * or if it is bodyweight/none.
+ * An exercise is valid if ALL of its required equipment constraints are met by the user's gear.
  */
 export function isEquipmentCompatible(exercise, userEquipment) {
-  if (!exercise || !Array.isArray(exercise.equipment)) return false;
-  // If exercise can be done with bodyweight or none, it is always available
-  if (exercise.equipment.includes(EQUIPMENT.BODYWEIGHT) || exercise.equipment.includes(EQUIPMENT.NONE)) {
-    return true;
-  }
-  // Otherwise, user must possess at least one matching equipment
-  return exercise.equipment.some(eq => userEquipment.includes(eq));
+  if (!exercise || !Array.isArray(exercise.equipment) || exercise.equipment.length === 0) return false;
+  if (!Array.isArray(userEquipment)) return false;
+
+  return exercise.equipment.every(req => {
+    if (typeof req === 'string' && req.trim()) {
+      return userEquipment.includes(req.trim());
+    } else if (req && typeof req === 'object' && Array.isArray(req.any) && req.any.length > 0) {
+      return req.any.some(eq => typeof eq === 'string' && userEquipment.includes(eq.trim()));
+    } else if (req && typeof req === 'object' && Array.isArray(req.all) && req.all.length > 0) {
+      return req.all.every(eq => typeof eq === 'string' && userEquipment.includes(eq.trim()));
+    }
+    return false;
+  });
 }
 
 /**
@@ -157,7 +166,7 @@ function scoreExercise(exercise, profile, variationSeed = 0) {
     for (let i = 0; i < exercise.id.length; i++) {
       hash = (hash * 31 + exercise.id.charCodeAt(i)) & 0xffffffff;
     }
-    const seedOffset = Math.abs((hash + variationSeed * 17) % 15);
+    const seedOffset = Math.abs((hash ^ (variationSeed * 2654435761)) % 30) - 15;
     score += seedOffset;
   }
 
@@ -234,13 +243,40 @@ function generateExplanation(profile, durationMinutes) {
  *
  * @param {Object} rawProfile - User profile from onboarding or settings
  * @param {number} variationSeed - Deterministic seed for regeneration (0, 1, 2...)
+ * @param {Array<Object>} [exerciseDb=EXERCISES] - Optional exercise library (defaults to canonical EXERCISES)
  * @returns {Object} Structured workout plan or safe fallback error object
  */
-export function generateWorkout(rawProfile = {}, variationSeed = 0) {
+export function generateWorkout(rawProfile = {}, variationSeed = 0, exerciseDb = EXERCISES) {
+  // Safe runtime validation of exercise database
+  if (exerciseDb === EXERCISES) {
+    if (!dbValidated) {
+      const dbValidation = validateExerciseDatabase(EXERCISES);
+      dbValid = dbValidation.valid;
+      dbValidated = true;
+      if (!dbValid) {
+        console.error("KINETIX SYSTEM ERROR: Exercise database validation failed.", dbValidation.errors);
+      }
+    }
+    if (!dbValid) {
+      return {
+        ok: false,
+        error: "System configuration error: Exercise database is invalid. Please contact support."
+      };
+    }
+  } else {
+    const customValidation = validateExerciseDatabase(exerciseDb);
+    if (!customValidation.valid) {
+      return {
+        ok: false,
+        error: "System configuration error: Exercise database is invalid. Please contact support."
+      };
+    }
+  }
+
   const profile = normalizeProfile(rawProfile);
 
   // 1. Filter all exercises strictly by equipment compatibility
-  const eligibleExercises = EXERCISES.filter(ex => isEquipmentCompatible(ex, profile.equipment));
+  const eligibleExercises = (exerciseDb || []).filter(ex => isEquipmentCompatible(ex, profile.equipment));
 
   // If equipment restriction produces fewer than 3 exercises, return safe fallback
   if (eligibleExercises.length < 3) {
@@ -255,137 +291,177 @@ export function generateWorkout(rawProfile = {}, variationSeed = 0) {
   const cooldownsPool = eligibleExercises.filter(ex => ex.category === CATEGORIES.COOLDOWN || ex.category === CATEGORIES.MOBILITY || ex.category === CATEGORIES.RECOVERY);
   const mainPool = eligibleExercises.filter(ex => ex.category !== CATEGORIES.WARMUP && ex.category !== CATEGORIES.COOLDOWN);
 
-  // Score main candidates
+  if (mainPool.length < 3) {
+    return {
+      ok: false,
+      error: "Not enough main exercises match your current equipment and focus. Try adding another equipment option to generate a complete routine."
+    };
+  }
+
+  // Score main candidates deterministically
   const scoredMain = mainPool.map(ex => ({
     exercise: ex,
     score: scoreExercise(ex, profile, variationSeed)
   })).sort((a, b) => b.score - a.score);
 
-  // 3. Determine target slot counts and sets based on duration
-  let targetMainCount = 4;
-  let defaultSets = 3;
-  let restBetweenSec = 60;
-
-  if (profile.durationMinutes <= 10) {
-    targetMainCount = 3;
-    defaultSets = 2;
-    restBetweenSec = 30;
-  } else if (profile.durationMinutes <= 15) {
-    targetMainCount = 4;
-    defaultSets = 2;
-    restBetweenSec = 40;
-  } else if (profile.durationMinutes <= 25) {
-    targetMainCount = 4;
-    defaultSets = 3;
-    restBetweenSec = 50;
-  } else if (profile.durationMinutes <= 40) {
-    targetMainCount = 5;
-    defaultSets = 3;
-    restBetweenSec = 60;
-  } else {
-    targetMainCount = 6;
-    defaultSets = 4;
-    restBetweenSec = 75;
-  }
-
-  // Goal-based rest adjustments
-  if (profile.goal === GOALS.GET_STRONGER) restBetweenSec = Math.max(restBetweenSec, 90);
-  if (profile.goal === GOALS.LOSE_FAT || profile.goal === GOALS.IMPROVE_ENDURANCE) {
-    restBetweenSec = Math.min(restBetweenSec, 35);
-    // In shorter rest endurance sessions, increase volume so workout stays close to target length
-    if (profile.durationMinutes >= 20) {
-      targetMainCount = Math.max(targetMainCount, 5);
-      defaultSets = Math.max(defaultSets, 3);
-    }
-  }
-
-  // 4. Select Main Exercises with Duplicate Prevention and Movement Pattern Diversity
-  const selectedMain = [];
-  const usedExerciseIds = new Set();
-  const usedPatterns = new Map(); // pattern -> count
-
-  for (const item of scoredMain) {
-    const ex = item.exercise;
-    if (usedExerciseIds.has(ex.id)) continue;
-
-    // Movement pattern diversity: allow at most 2 of same pattern (or 1 for short routines)
-    const maxPatternAllowance = targetMainCount <= 3 ? 1 : 2;
-    const currentPatternCount = usedPatterns.get(ex.movementPattern) || 0;
-    if (currentPatternCount >= maxPatternAllowance) continue;
-
-    selectedMain.push(ex);
-    usedExerciseIds.add(ex.id);
-    usedPatterns.set(ex.movementPattern, currentPatternCount + 1);
-
-    if (selectedMain.length >= targetMainCount) break;
-  }
-
-  // Fallback if pattern diversity was too strict: backfill from top candidates
-  if (selectedMain.length < 3) {
-    for (const item of scoredMain) {
-      const ex = item.exercise;
-      if (!usedExerciseIds.has(ex.id)) {
-        selectedMain.push(ex);
-        usedExerciseIds.add(ex.id);
-        if (selectedMain.length >= 3) break;
-      }
-    }
-  }
-
-  // 5. Select Warmup (1-2 exercises)
-  const selectedWarmup = [];
   const scoredWarmups = warmupsPool.map(ex => ({
     exercise: ex,
     score: scoreExercise(ex, profile, variationSeed)
   })).sort((a, b) => b.score - a.score);
 
-  const warmupTarget = profile.durationMinutes >= 30 ? 2 : 1;
-  for (const item of scoredWarmups) {
-    if (!usedExerciseIds.has(item.exercise.id)) {
-      selectedWarmup.push(item.exercise);
-      usedExerciseIds.add(item.exercise.id);
-      if (selectedWarmup.length >= warmupTarget) break;
-    }
-  }
-
-  // 6. Select Cooldown (1 exercise)
-  const selectedCooldown = [];
   const scoredCooldowns = cooldownsPool.map(ex => ({
     exercise: ex,
     score: scoreExercise(ex, profile, variationSeed)
   })).sort((a, b) => b.score - a.score);
 
-  for (const item of scoredCooldowns) {
-    if (!usedExerciseIds.has(item.exercise.id)) {
-      selectedCooldown.push(item.exercise);
-      usedExerciseIds.add(item.exercise.id);
-      break;
+  // 3. Reliable Duration Fitting Algorithm
+  const normGoal = profile.goal;
+  const isStrength = normGoal === GOALS.GET_STRONGER;
+  const isEnduranceOrFatLoss = normGoal === GOALS.LOSE_FAT || normGoal === GOALS.IMPROVE_ENDURANCE;
+
+  const maxAvailableMain = Math.min(8, scoredMain.length);
+  const minAvailableMain = Math.min(3, maxAvailableMain);
+
+  let setsOptions;
+  if (profile.durationMinutes <= 12) {
+    setsOptions = [2, 3];
+  } else if (profile.durationMinutes <= 25) {
+    setsOptions = [2, 3, 4];
+  } else if (profile.durationMinutes <= 40) {
+    setsOptions = [3, 4];
+  } else {
+    setsOptions = [3, 4, 5];
+  }
+
+  let restOptions;
+  if (isStrength) {
+    restOptions = [60, 75, 90, 105, 120];
+  } else if (isEnduranceOrFatLoss) {
+    restOptions = [20, 25, 30, 35, 40, 45, 50];
+  } else {
+    restOptions = [30, 40, 45, 50, 60, 75, 90];
+  }
+
+  const warmupOptions = profile.durationMinutes <= 10 ? [0, 1] : profile.durationMinutes <= 25 ? [1] : [1, 2];
+  const cooldownOptions = profile.durationMinutes <= 10 ? [0, 1] : [1];
+
+  let bestCandidate = null;
+  let minDiff = Infinity;
+
+  // Ideal target heuristic for tie-breaking
+  const idealSets = profile.durationMinutes <= 15 ? 2 : profile.durationMinutes <= 35 ? 3 : 4;
+  const idealMain = profile.durationMinutes <= 15 ? 4 : profile.durationMinutes <= 30 ? 5 : profile.durationMinutes <= 45 ? 6 : 7;
+
+  searchLoop:
+  for (let mc = minAvailableMain; mc <= maxAvailableMain; mc++) {
+    for (const sets of setsOptions) {
+      for (const restSec of restOptions) {
+        for (const wc of warmupOptions) {
+          for (const cc of cooldownOptions) {
+            const selectedMain = [];
+            const usedExerciseIds = new Set();
+            const usedPatterns = new Map();
+            const maxPatternAllowance = mc <= 3 ? 1 : 2;
+
+            for (const item of scoredMain) {
+              const ex = item.exercise;
+              if (usedExerciseIds.has(ex.id)) continue;
+              const currentPatternCount = usedPatterns.get(ex.movementPattern) || 0;
+              if (currentPatternCount >= maxPatternAllowance) continue;
+
+              selectedMain.push(ex);
+              usedExerciseIds.add(ex.id);
+              usedPatterns.set(ex.movementPattern, currentPatternCount + 1);
+              if (selectedMain.length >= mc) break;
+            }
+
+            if (selectedMain.length < minAvailableMain) {
+              for (const item of scoredMain) {
+                const ex = item.exercise;
+                if (!usedExerciseIds.has(ex.id)) {
+                  selectedMain.push(ex);
+                  usedExerciseIds.add(ex.id);
+                  if (selectedMain.length >= minAvailableMain) break;
+                }
+              }
+            }
+
+            const selectedWarmup = [];
+            for (const item of scoredWarmups) {
+              if (!usedExerciseIds.has(item.exercise.id)) {
+                selectedWarmup.push(item.exercise);
+                usedExerciseIds.add(item.exercise.id);
+                if (selectedWarmup.length >= wc) break;
+              }
+            }
+
+            const selectedCooldown = [];
+            for (const item of scoredCooldowns) {
+              if (!usedExerciseIds.has(item.exercise.id)) {
+                selectedCooldown.push(item.exercise);
+                usedExerciseIds.add(item.exercise.id);
+                if (selectedCooldown.length >= cc) break;
+              }
+            }
+
+            const transitionSec = 15;
+            let totalDurationSec = 0;
+
+            selectedWarmup.forEach(w => {
+              totalDurationSec += (w.defaultDurationSec || 30) + 15 + transitionSec;
+            });
+
+            selectedMain.forEach(m => {
+              const exDuration = m.defaultDurationSec || 40;
+              totalDurationSec += (sets * exDuration) + ((sets - 1) * restSec) + transitionSec;
+            });
+
+            selectedCooldown.forEach(c => {
+              totalDurationSec += (c.defaultDurationSec || 45) + transitionSec;
+            });
+
+            const calculatedDurationMinutes = Math.max(5, Math.round(totalDurationSec / 60));
+            const diff = Math.abs(calculatedDurationMinutes - profile.durationMinutes);
+
+            if (diff < minDiff) {
+              minDiff = diff;
+              bestCandidate = {
+                selectedMain,
+                selectedWarmup,
+                selectedCooldown,
+                defaultSets: sets,
+                restBetweenSec: restSec,
+                calculatedDurationMinutes
+              };
+              if (minDiff === 0) break searchLoop;
+            } else if (diff === minDiff && bestCandidate) {
+              const currentPenalty = Math.abs(sets - idealSets) + Math.abs(selectedMain.length - idealMain);
+              const bestPenalty = Math.abs(bestCandidate.defaultSets - idealSets) + Math.abs(bestCandidate.selectedMain.length - idealMain);
+              if (currentPenalty < bestPenalty) {
+                bestCandidate = {
+                  selectedMain,
+                  selectedWarmup,
+                  selectedCooldown,
+                  defaultSets: sets,
+                  restBetweenSec: restSec,
+                  calculatedDurationMinutes
+                };
+              }
+            }
+          }
+        }
+      }
     }
   }
 
-  // 7. Calculate Precise Workout Duration from Sets, Reps, Rest, and Transitions
-  const transitionSec = 15;
-  let totalDurationSec = 0;
+  const selectedMain = bestCandidate.selectedMain;
+  const selectedWarmup = bestCandidate.selectedWarmup;
+  const selectedCooldown = bestCandidate.selectedCooldown;
+  const defaultSets = bestCandidate.defaultSets;
+  const restBetweenSec = bestCandidate.restBetweenSec;
+  const calculatedDurationMinutes = bestCandidate.calculatedDurationMinutes;
 
-  // Warmup duration (1 set each)
-  selectedWarmup.forEach(w => {
-    totalDurationSec += (w.defaultDurationSec || 30) + 15 + transitionSec;
-  });
-
-  // Main exercises duration (defaultSets * (duration + rest))
-  selectedMain.forEach(m => {
-    const exDuration = m.defaultDurationSec || 40;
-    totalDurationSec += (defaultSets * exDuration) + ((defaultSets - 1) * restBetweenSec) + transitionSec;
-  });
-
-  // Cooldown duration
-  selectedCooldown.forEach(c => {
-    totalDurationSec += (c.defaultDurationSec || 45) + transitionSec;
-  });
-
-  const calculatedDurationMinutes = Math.max(5, Math.round(totalDurationSec / 60));
-
-  // 8. Calculate Transparent Calorie Estimate
+  // 4. Calculate Transparent Calorie Estimate
   let totalCalPerMin = 0;
   const allInRoutine = [...selectedWarmup, ...selectedMain, ...selectedCooldown];
   allInRoutine.forEach(ex => {
@@ -399,7 +475,7 @@ export function generateWorkout(rawProfile = {}, variationSeed = 0) {
   if (profile.goal === GOALS.LOSE_FAT || profile.goal === GOALS.GET_STRONGER) intensity += 0.1;
   const estimatedCalories = Math.round(calculatedDurationMinutes * avgCalPerMin * intensity);
 
-  // 9. Generate Deterministic Title and Explanation
+  // 5. Generate Deterministic Title and Explanation
   const title = generateWorkoutTitle(profile, selectedMain, profile.durationMinutes);
   const explanation = generateExplanation(profile, calculatedDurationMinutes);
 
@@ -412,6 +488,7 @@ export function generateWorkout(rawProfile = {}, variationSeed = 0) {
 
   // Unique deterministic ID for this generated routine
   const id = `gen-${profile.goal.slice(0, 3)}-${calculatedDurationMinutes}m-v${variationSeed}`;
+  const differenceMinutes = calculatedDurationMinutes - profile.durationMinutes;
 
   return {
     ok: true,
@@ -424,6 +501,12 @@ export function generateWorkout(rawProfile = {}, variationSeed = 0) {
     durationMin: calculatedDurationMinutes,
     durationMinutes: calculatedDurationMinutes,
     requestedDurationMin: profile.durationMinutes,
+    durationAccuracy: {
+      requestedMinutes: profile.durationMinutes,
+      actualMinutes: calculatedDurationMinutes,
+      differenceMinutes,
+      withinTolerance: Math.abs(differenceMinutes) <= 3
+    },
     equipment: profile.equipment.includes(EQUIPMENT.DUMBBELL)
       ? 'Dumbbells'
       : profile.equipment.includes(EQUIPMENT.BARBELL)
