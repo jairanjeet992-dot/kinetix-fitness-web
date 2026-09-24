@@ -2,7 +2,7 @@
  * PHASE 9.3 — SCALABLE EXERCISE VISUAL SYSTEM
  */
 import { renderExerciseVisualThumbnail } from '../js/components/exercise-visual.js';
-import { getBiomechanicalIllustration } from '../js/components/exercise-media.js';
+import { getBiomechanicalIllustration, sanitizeMediaUrl } from '../js/components/exercise-media.js';
 import { EXERCISES } from '../js/data/exercises.js';
 
 let total=0, passed=0, failed=0;
@@ -39,6 +39,11 @@ canonicalVisualCases.forEach(([pattern, muscles]) => {
     assert(svg !== squatSvg, `Canonical pattern ${pattern} does not silently fall back to squat`);
   }
 });
+
+
+assert(Boolean(sanitizeMediaUrl('data:image/png;base64,AAAA')), 'Raster data image URLs remain supported');
+assert(sanitizeMediaUrl('data:image/svg+xml;base64,PHN2Zy8+') === null, 'SVG data URLs are rejected');
+assert(sanitizeMediaUrl('javascript:alert(1)') === null, 'JavaScript media URLs are rejected');
 
 const special=renderExerciseVisualThumbnail({id:'xss',name:'<script>alert(1)</script>',movementPattern:'squat',primaryMuscles:['quadriceps']});
 assert(!special.includes('<script>alert(1)</script>'),'Exercise name is escaped');
