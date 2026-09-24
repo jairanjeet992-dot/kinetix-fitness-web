@@ -21,7 +21,7 @@ import {
   analyzeExerciseRotation,
   PROGRESSION_ACTIONS
 } from './progression-engine.js';
-import { EXERCISES } from '../data/exercises.js';
+import { EXERCISES, getExerciseById } from '../data/exercises.js';
 import { isEquipmentCompatible } from '../engine/workout-generator.js';
 
 export { RECOVERY_STATES } from './recovery-engine.js';
@@ -93,15 +93,19 @@ export function analyzeTrainingIntelligence({
 
   // Filter valid history up to reference date
   const validHistory = resolvedHistory.filter(r => {
-    if (!r || !r.completedAt || typeof r.completedAt !== 'string') return false;
-    const ts = new Date(r.completedAt).getTime();
+    if (!r) return false;
+    const dateStr = r.completedAt || r.date || r.timestamp;
+    if (!dateStr || typeof dateStr !== 'string') return false;
+    const ts = new Date(dateStr).getTime();
     return !isNaN(ts) && ts > 0 && ts <= refTime;
   });
 
   // Filter valid performance logs up to reference date
   const validLogs = resolvedLogs.filter(l => {
-    if (!l || !l.completedAt || typeof l.completedAt !== 'string') return false;
-    const ts = new Date(l.completedAt).getTime();
+    if (!l) return false;
+    const dateStr = l.completedAt || l.date || l.timestamp;
+    if (!dateStr || typeof dateStr !== 'string') return false;
+    const ts = new Date(dateStr).getTime();
     return !isNaN(ts) && ts > 0 && ts <= refTime;
   });
 
@@ -190,9 +194,64 @@ export function analyzeTrainingIntelligence({
     });
   });
 
+  // 2.5 DETERMINISTIC CONFLICT RESOLUTION & ADAPTATION PRIORITY
+  // Priority 1: Systemic Fatigue (RECOVERY_RECOMMENDED) -> De-escalate all progression to MAINTAIN
+  if (recoveryReport.status === RECOVERY_STATES.RECOVERY_RECOMMENDED) {
+    candidateExercises.forEach(p => {
+      if (p.action === PROGRESSION_ACTIONS.INCREASE_WEIGHT || p.action === PROGRESSION_ACTIONS.INCREASE_REPS) {
+        p.action = PROGRESSION_ACTIONS.MAINTAIN;
+        p.adaptationApplied = false;
+        p.recommendedWeightKg = p.currentWeightKg;
+        p.recommendedReps = p.currentReps;
+        p.reason = 'Recovery priority: Progressive overload deferred due to high training density. Maintain current parameters to support systemic recovery.';
+      }
+    });
+  }
+
+  // Priority 2: Localized Muscle Fatigue (REDUCE_VOLUME) -> De-escalate progression for overlapping muscles
+  if (recoveryReport.status === RECOVERY_STATES.REDUCE_VOLUME && Array.isArray(recoveryReport.overlappingMuscles) && recoveryReport.overlappingMuscles.length > 0) {
+    candidateExercises.forEach(p => {
+      if (p.action === PROGRESSION_ACTIONS.INCREASE_WEIGHT || p.action === PROGRESSION_ACTIONS.INCREASE_REPS) {
+        const exObj = getExerciseById(p.exerciseId);
+        const primaryMuscles = exObj ? (exObj.primaryMuscles || []) : [];
+        const overlap = primaryMuscles.filter(m => recoveryReport.overlappingMuscles.includes(m));
+        if (overlap.length > 0) {
+          p.action = PROGRESSION_ACTIONS.MAINTAIN;
+          p.adaptationApplied = false;
+          p.recommendedWeightKg = p.currentWeightKg;
+          p.recommendedReps = p.currentReps;
+          p.reason = `Progressive overload deferred for ${p.exerciseName}: target muscle (${overlap.join(', ')}) was trained within the last 48 hours. Maintain load to facilitate localized recovery.`;
+        }
+      }
+    });
+  }
+
+  // Priority 3: Staleness Rotation vs Progression -> Rotation supersedes progression on stale exercise
+  suggestedReplacements.forEach(r => {
+    const p = candidateExercises.find(c => c.exerciseId === r.originalExerciseId);
+    if (p && p.adaptationApplied) {
+      p.adaptationApplied = false;
+      p.supersededByRotation = true;
+      p.reason = `Progression superseded by exercise rotation. ${r.reason}`;
+    }
+  });
+
+  // Re-sync exerciseInsights with resolved actions
+  exerciseInsights.forEach(insight => {
+    const p = candidateExercises.find(c => c.exerciseId === insight.exerciseId);
+    if (p) {
+      insight.progressionAction = p.action;
+      insight.recommendedWeightKg = p.recommendedWeightKg;
+      insight.recommendedReps = p.recommendedReps;
+      insight.progressionReason = p.reason;
+      insight.adaptationApplied = p.adaptationApplied;
+      insight.supersededByRotation = !!p.supersededByRotation;
+    }
+  });
+
   // Progression summary counts
   const progressionCount = candidateExercises.filter(p =>
-    p.action === PROGRESSION_ACTIONS.INCREASE_WEIGHT || p.action === PROGRESSION_ACTIONS.INCREASE_REPS
+    (p.action === PROGRESSION_ACTIONS.INCREASE_WEIGHT || p.action === PROGRESSION_ACTIONS.INCREASE_REPS) && p.adaptationApplied
   ).length;
 
   const deloadCount = candidateExercises.filter(p =>
@@ -232,9 +291,9 @@ export function analyzeTrainingIntelligence({
     reasons.push(...recoveryReport.reasons);
   }
 
-  // Progression recommendations
+  // Progression recommendations (strictly non-conflicting)
   candidateExercises.forEach(p => {
-    if (p.adaptationApplied) {
+    if (p.adaptationApplied && !p.supersededByRotation) {
       recommendations.push(`${p.exerciseName}: ${p.reason}`);
       reasons.push(`${p.exerciseName}: ${p.reason}`);
     }
@@ -269,6 +328,7 @@ export function analyzeTrainingIntelligence({
       summary: progressionSummary
     },
     rotation: {
+      hasRotations: suggestedReplacements.length > 0,
       staleExercises,
       suggestedReplacements
     },

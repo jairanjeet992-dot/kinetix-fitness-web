@@ -31,21 +31,25 @@ import { EXERCISES, getExerciseById } from '../data/exercises.js';
  * @returns {Object} Structured workout plan with attached adaptation metadata
  */
 export function generateAdaptiveWorkout(rawProfile = {}, variationSeed = 0, options = {}) {
-  const exerciseDb = options.exerciseDb || EXERCISES;
-  const profile = normalizeProfile(rawProfile);
+  const safeProfileInput = (rawProfile && typeof rawProfile === 'object') ? rawProfile : {};
+  const safeSeed = Number.isFinite(Number(variationSeed)) ? Math.max(0, Math.floor(Number(variationSeed))) : 0;
+  const safeOptions = (options && typeof options === 'object') ? options : {};
+
+  const exerciseDb = safeOptions.exerciseDb || EXERCISES;
+  const profile = normalizeProfile(safeProfileInput);
 
   // 1. Generate deterministic baseline workout
-  const baseline = generateWorkout(rawProfile, variationSeed, exerciseDb);
+  const baseline = generateWorkout(safeProfileInput, safeSeed, exerciseDb);
   if (!baseline || !baseline.ok) {
     return baseline;
   }
 
   // 2. Run Training Intelligence on baseline proposal
   const intelligence = analyzeTrainingIntelligence({
-    historyRecords: options.historyRecords,
-    performanceLogs: options.performanceLogs,
+    historyRecords: safeOptions.historyRecords,
+    performanceLogs: safeOptions.performanceLogs,
     profile,
-    referenceDate: options.referenceDate,
+    referenceDate: safeOptions.referenceDate,
     proposedWorkout: baseline
   });
 
@@ -200,10 +204,26 @@ export function generateAdaptiveWorkout(rawProfile = {}, variationSeed = 0, opti
       const restSec = adapted.restBetweenExercisesSec || 45;
       const exerciseDurationSec = 40;
       const totalSeconds = (mainCount * setsPerMain * (exerciseDurationSec + restSec)) + 300; // +5m warmup/cooldown
-      const recalcedMin = Math.max(10, Math.round(totalSeconds / 60));
+      const recalcedMin = Math.max(10, Math.min(75, Math.round(totalSeconds / 60)));
       adapted.durationMin = recalcedMin;
       adapted.durationMinutes = recalcedMin;
       adapted.estimatedCalories = Math.max(50, Math.round(recalcedMin * 7.5));
+
+      if (adapted.durationAccuracy) {
+        const requested = adapted.durationAccuracy.requestedMinutes ?? profile.durationMinutes ?? recalcedMin;
+        const diff = recalcedMin - requested;
+        adapted.durationAccuracy = {
+          requestedMinutes: requested,
+          actualMinutes: recalcedMin,
+          differenceMinutes: diff,
+          withinTolerance: Math.abs(diff) <= 3
+        };
+      }
+    }
+
+    // Check 5: Duration sanity boundary
+    if (typeof adapted.durationMinutes !== 'number' || adapted.durationMinutes < 10 || adapted.durationMinutes > 75) {
+      throw new Error(`Adapted duration (${adapted.durationMinutes} min) exceeds safe bounds (10-75 min).`);
     }
 
     const applied = changes.length > 0;

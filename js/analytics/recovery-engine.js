@@ -66,9 +66,27 @@ export function extractMusclesFromHistoryRecord(historyRecord) {
   }
 
   // 1. If completed exercise IDs are recorded
-  const exerciseIds = Array.isArray(historyRecord.completedExerciseIds)
-    ? historyRecord.completedExerciseIds
-    : (Array.isArray(historyRecord.completedExercises) ? historyRecord.completedExercises : []);
+  const exerciseIds = [];
+  if (Array.isArray(historyRecord.completedExerciseIds)) {
+    historyRecord.completedExerciseIds.forEach(id => { if (typeof id === 'string' && id.trim()) exerciseIds.push(id.trim()); });
+  }
+  if (Array.isArray(historyRecord.exerciseIds)) {
+    historyRecord.exerciseIds.forEach(id => { if (typeof id === 'string' && id.trim()) exerciseIds.push(id.trim()); });
+  }
+  if (Array.isArray(historyRecord.completedExercises)) {
+    historyRecord.completedExercises.forEach(e => {
+      if (typeof e === 'string' && e.trim()) exerciseIds.push(e.trim());
+      else if (e && e.id && typeof e.id === 'string') exerciseIds.push(e.id.trim());
+      else if (e && e.exerciseId && typeof e.exerciseId === 'string') exerciseIds.push(e.exerciseId.trim());
+    });
+  }
+  if (Array.isArray(historyRecord.exercises)) {
+    historyRecord.exercises.forEach(e => {
+      if (typeof e === 'string' && e.trim()) exerciseIds.push(e.trim());
+      else if (e && e.id && typeof e.id === 'string') exerciseIds.push(e.id.trim());
+      else if (e && e.exerciseId && typeof e.exerciseId === 'string') exerciseIds.push(e.exerciseId.trim());
+    });
+  }
 
   const defaultSets = Number(historyRecord.setsCompleted) > 0
     ? Math.max(1, Math.round(Number(historyRecord.setsCompleted) / (exerciseIds.length || 1)))
@@ -110,22 +128,50 @@ export function extractMusclesFromHistoryRecord(historyRecord) {
  * @param {Array<string>} [params.proposedMuscles=[]] - Muscle groups targeted by the upcoming session
  * @returns {Object} Structured recovery report
  */
-export function analyzeRecovery({
-  historyRecords = [],
-  referenceDate = new Date(),
-  proposedMuscles = []
-} = {}) {
+export function analyzeRecovery(params = {}, legacyRefDate = null, legacyProposed = null) {
+  let historyRecords = [];
+  let referenceDate = new Date();
+  let proposedMuscles = [];
+
+  if (Array.isArray(params)) {
+    historyRecords = params;
+    if (legacyRefDate) referenceDate = legacyRefDate;
+    if (legacyProposed) {
+      if (Array.isArray(legacyProposed)) {
+        proposedMuscles = legacyProposed;
+      } else if (legacyProposed && typeof legacyProposed === 'object' && Array.isArray(legacyProposed.exercises)) {
+        proposedMuscles = legacyProposed.exercises.flatMap(e => {
+          if (!e) return [];
+          const exObj = typeof e === 'string' ? getExerciseById(e) : e;
+          return (exObj && exObj.muscleGroups) ? exObj.muscleGroups : ((exObj && exObj.primaryMuscles) ? exObj.primaryMuscles : []);
+        });
+      }
+    }
+  } else if (params && typeof params === 'object') {
+    historyRecords = params.historyRecords || [];
+    referenceDate = params.referenceDate || new Date();
+    proposedMuscles = params.proposedMuscles || [];
+  }
+
   const refDateObj = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
   const refTime = !isNaN(refDateObj.getTime()) ? refDateObj.getTime() : Date.now();
 
+  const getRecordTimestamp = (r) => {
+    if (!r || typeof r !== 'object') return null;
+    const raw = r.completedAt || r.date || r.timestamp;
+    if (!raw) return null;
+    const ts = new Date(raw).getTime();
+    return (!isNaN(ts) && ts > 0) ? { ts, dateStr: raw } : null;
+  };
+
   // Filter valid historical records up to reference time (strictly no future records)
   const validHistory = (historyRecords || [])
-    .filter(r => r && typeof r === 'object' && r.completedAt && typeof r.completedAt === 'string')
-    .filter(r => {
-      const ts = new Date(r.completedAt).getTime();
-      return !isNaN(ts) && ts > 0 && ts <= refTime;
+    .map(r => {
+      const parsed = getRecordTimestamp(r);
+      return parsed ? { ...r, _parsedTs: parsed.ts, _dateStr: parsed.dateStr } : null;
     })
-    .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+    .filter(r => r !== null && r._parsedTs <= refTime)
+    .sort((a, b) => b._parsedTs - a._parsedTs);
 
   const canonicalProposed = normalizeMuscleList(proposedMuscles);
 
@@ -144,6 +190,7 @@ export function analyzeRecovery({
       weeklyTrainingLoad: 0,
       weeklyLoadTier: 'None',
       fatiguedMuscles: [],
+      recentTrainedMuscles: [],
       overlappingMuscles: [],
       overlapDetected: false,
       muscleFatigueMap: {},
@@ -154,14 +201,14 @@ export function analyzeRecovery({
   }
 
   const mostRecent = validHistory[0];
-  const mostRecentTs = new Date(mostRecent.completedAt).getTime();
+  const mostRecentTs = mostRecent._parsedTs;
   const hoursSinceLastWorkout = Math.max(0, Math.round((refTime - mostRecentTs) / MS_PER_HOUR));
   const daysSinceLastWorkout = Math.max(0, Math.floor((refTime - mostRecentTs) / MS_PER_DAY));
 
   // 1. Calculate consecutive training days leading up to refDate
   // Map history to unique calendar date strings YYYY-MM-DD
   const trainedDates = new Set(
-    validHistory.map(r => new Date(r.completedAt).toISOString().split('T')[0])
+    validHistory.map(r => new Date(r._parsedTs).toISOString().split('T')[0])
   );
 
   let consecutiveDays = 0;
@@ -188,9 +235,9 @@ export function analyzeRecovery({
 
   // 2. Trailing 7-day metrics
   const sevenDaysAgoTs = refTime - (7 * MS_PER_DAY);
-  const last7DaysRecords = validHistory.filter(r => new Date(r.completedAt).getTime() >= sevenDaysAgoTs);
+  const last7DaysRecords = validHistory.filter(r => r._parsedTs >= sevenDaysAgoTs);
   const weeklyTrainingDays = new Set(
-    last7DaysRecords.map(r => new Date(r.completedAt).toISOString().split('T')[0])
+    last7DaysRecords.map(r => new Date(r._parsedTs).toISOString().split('T')[0])
   ).size;
 
   const weeklyTrainingLoad = calculateRecentTrainingLoad(validHistory, refDateObj);
@@ -198,7 +245,7 @@ export function analyzeRecovery({
 
   // 3. Muscle Fatigue Tracking (last 48 hours)
   const fortyEightHoursAgoTs = refTime - (48 * MS_PER_HOUR);
-  const recent48hRecords = validHistory.filter(r => new Date(r.completedAt).getTime() >= fortyEightHoursAgoTs);
+  const recent48hRecords = validHistory.filter(r => r._parsedTs >= fortyEightHoursAgoTs);
 
   const muscleFatigueMap = {};
   ALL_CANONICAL_MUSCLES.forEach(m => {
@@ -212,7 +259,7 @@ export function analyzeRecovery({
 
   // Accumulate sets and recency per muscle from 48h history
   recent48hRecords.forEach(rec => {
-    const recHoursAgo = Math.max(0, Math.round((refTime - new Date(rec.completedAt).getTime()) / MS_PER_HOUR));
+    const recHoursAgo = Math.max(0, Math.round((refTime - rec._parsedTs) / MS_PER_HOUR));
     const { primary, secondary, setsPerMuscle } = extractMusclesFromHistoryRecord(rec);
 
     setsPerMuscle.forEach((sets, muscle) => {
@@ -245,7 +292,7 @@ export function analyzeRecovery({
   const overlappingMuscles = [];
   canonicalProposed.forEach(m => {
     const fatigue = muscleFatigueMap[m];
-    if (fatigue && (fatigue.fatigueLevel === 'HIGH' || (fatigue.hoursSince !== null && fatigue.hoursSince <= 24))) {
+    if (fatigue && (fatigue.fatigueLevel === 'HIGH' || fatigue.fatigueLevel === 'MODERATE' || (fatigue.hoursSince !== null && fatigue.hoursSince <= 36))) {
       overlappingMuscles.push(m);
     }
   });
@@ -271,6 +318,10 @@ export function analyzeRecovery({
     status = RECOVERY_STATES.REDUCE_VOLUME;
     reasons.push(`Trailing 7-day training load is elevated (${weeklyTrainingLoad} pts - ${weeklyLoadTier}).`);
     recommendations.push('Scale back sets or duration by 10–20% to prevent fatigue accumulation.');
+  } else if (daysSinceLastWorkout === 0) {
+    status = RECOVERY_STATES.NORMAL;
+    reasons.push(`Workout completed earlier today (${hoursSinceLastWorkout} hours ago). System is in regular recovery.`);
+    recommendations.push('Maintain standard intensity; avoid excessive volume on previously engaged muscles.');
   } else if (daysSinceLastWorkout === 1) {
     status = RECOVERY_STATES.NORMAL;
     reasons.push('Regular daily cadence. Recovery markers are in a balanced, healthy range.');
@@ -306,6 +357,7 @@ export function analyzeRecovery({
     weeklyTrainingLoad,
     weeklyLoadTier,
     fatiguedMuscles,
+    recentTrainedMuscles: ALL_CANONICAL_MUSCLES.filter(m => muscleFatigueMap[m] && muscleFatigueMap[m].hoursSince !== null),
     overlappingMuscles,
     overlapDetected: overlappingMuscles.length > 0,
     muscleFatigueMap,

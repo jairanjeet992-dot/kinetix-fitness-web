@@ -107,7 +107,28 @@ Confidence levels are backed strictly by verifiable data points:
 
 ---
 
-## 9. Known Limitations
+## 10. Phase 6.1 Hardening & Deterministic Conflict Resolution
+
+Phase 6.1 audited and hardened the Adaptive Training Intelligence layer against adversarial inputs, edge cases, and signal collisions:
+
+### Adaptation Priority Hierarchy & Conflict Resolution
+When multiple contradictory training signals trigger simultaneously, the orchestrator applies a strict deterministic resolution hierarchy:
+1. **Priority 1 (Systemic Recovery)**: If user readiness is `RECOVERY_RECOMMENDED` (due to >=3 consecutive training days or <12h recovery window), all progressive overload increases (`INCREASE_WEIGHT`, `INCREASE_REPS`) are de-escalated to `MAINTAIN`. Systemic recovery strictly overrides load advancement.
+2. **Priority 2 (Localized Muscle Fatigue)**: If user readiness is `REDUCE_VOLUME` with muscle overlap (target muscle trained within 48h), progressive overload for overlapping exercises is de-escalated to `MAINTAIN`.
+3. **Priority 3 (Staleness Rotation vs Progression)**: If an exercise is scheduled for rotation due to staleness (>=3 consecutive sessions), rotation supersedes overload on that exercise (`supersededByRotation = true`). Contradictory progressive overload recommendations for rotated-out exercises are excluded from the plan recommendations.
+
+### Anti-Ping-Pong Exercise Rotation
+When evaluating replacement exercises for a stale movement, candidates performed in the preceding 2 sessions are deprioritized. This prevents cyclic oscillation (e.g., A → B → A → B) and ensures diverse biomechanical stimulus while strictly preserving user equipment constraints.
+
+### Duration & Metadata Synchronization
+When volume calibration modifies workout volume (reducing rounds or trimming accessory exercises), total workout duration and estimated calories are recalculated deterministically. The `durationAccuracy` metadata object (`requestedMinutes`, `actualMinutes`, `differenceMinutes`, `withinTolerance`) is synchronized in lockstep with the adapted duration.
+
+### Unit Consistency & Display
+Target weights in progression recommendations and UI detail views adapt dynamically to user unit preferences (`kg` vs `lb`), applying canonical conversions without truncating or mutating canonical stored values.
+
+---
+
+## 11. Known Limitations
 
 - **Local-Only Storage**: All history and performance records reside in browser `localStorage`. Cache clearing will reset training intelligence to baseline.
 - **Equipment Specificity**: Dumbbell increments assume standard pairs; specialized micro-plates or variable resistance bands use normalized default step sizes.

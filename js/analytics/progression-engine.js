@@ -8,7 +8,7 @@
  */
 
 import { getExerciseById, EXERCISES } from '../data/exercises.js';
-import { EQUIPMENT } from '../data/taxonomy.js';
+import { EQUIPMENT, normalizeEquipmentList } from '../data/taxonomy.js';
 import { isEquipmentCompatible } from '../engine/workout-generator.js';
 
 export const PROGRESSION_ACTIONS = Object.freeze({
@@ -64,13 +64,24 @@ export function parseTargetReps(rawReps) {
  * @param {string} [options.unit='kg'] - User weight unit preference
  * @returns {Object} Deterministic progression recommendation
  */
-export function analyzeExerciseProgression(exerciseId, {
-  performanceLogs = [],
-  exerciseDefinition = null,
-  unit = 'kg'
-} = {}) {
-  const cleanId = String(exerciseId || '').trim();
-  const ex = exerciseDefinition || getExerciseById(cleanId);
+export function analyzeExerciseProgression(exerciseId, options = {}, extraOpts = {}) {
+  const isOptionsArray = Array.isArray(options);
+  const opts = isOptionsArray
+    ? { performanceLogs: options, ...extraOpts }
+    : (options && typeof options === 'object' ? { ...options, ...extraOpts } : {});
+  const performanceLogs = opts.performanceLogs || [];
+  const unit = opts.unit || 'kg';
+
+  let cleanId = '';
+  let exDef = opts.exerciseDefinition || null;
+  if (exerciseId && typeof exerciseId === 'object') {
+    cleanId = String(exerciseId.id || '').trim();
+    if (!exDef) exDef = exerciseId;
+  } else {
+    cleanId = String(exerciseId || '').trim();
+  }
+
+  const ex = exDef || getExerciseById(cleanId);
 
   if (!cleanId || !ex) {
     return {
@@ -92,25 +103,35 @@ export function analyzeExerciseProgression(exerciseId, {
   const targetRepInfo = parseTargetReps(ex.defaultReps);
   const targetReps = targetRepInfo.target;
 
-  // Filter logs for this specific exercise
+  // Filter logs for this specific exercise with strict timestamp validation
   const exerciseLogs = (performanceLogs || [])
-    .filter(log => log && log.exerciseId === cleanId && log.completedAt)
+    .filter(log => {
+      if (!log || typeof log !== 'object' || log.exerciseId !== cleanId || !log.completedAt) return false;
+      const ts = new Date(log.completedAt).getTime();
+      return !isNaN(ts) && ts > 0;
+    })
     .sort((a, b) => new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime());
 
-  // Group logs into distinct sessions chronologically
+  // Group logs into distinct sessions chronologically with set-level deduplication
   const sessionsMap = new Map();
   exerciseLogs.forEach(log => {
     if (!sessionsMap.has(log.sessionId)) {
       sessionsMap.set(log.sessionId, {
         sessionId: log.sessionId,
         date: log.completedAt,
-        sets: []
+        setsMap: new Map()
       });
     }
-    sessionsMap.get(log.sessionId).sets.push(log);
+    const sEntry = sessionsMap.get(log.sessionId);
+    const setKey = Number.isFinite(Number(log.setNumber)) ? Number(log.setNumber) : (sEntry.setsMap.size + 1);
+    sEntry.setsMap.set(setKey, log);
   });
 
-  const sessionList = Array.from(sessionsMap.values());
+  const sessionList = Array.from(sessionsMap.values()).map(s => ({
+    sessionId: s.sessionId,
+    date: s.date,
+    sets: Array.from(s.setsMap.values())
+  }));
   const sessionsCount = sessionList.length;
 
   // Rule 1: Insufficient data guard (requires at least 2 completed sessions)
@@ -124,7 +145,7 @@ export function analyzeExerciseProgression(exerciseId, {
       sessionsEvaluated: sessionsCount,
       currentWeightKg: latestSet ? latestSet.weightKg : null,
       recommendedWeightKg: latestSet ? latestSet.weightKg : null,
-      currentReps: latestSet ? latestSet.reps : null,
+      currentReps: latestSet ? (latestSet.reps ?? latestSet.actualReps ?? null) : null,
       recommendedReps: targetReps,
       currentSets: ex.defaultSets || 3,
       recommendedSets: ex.defaultSets || 3,
@@ -149,26 +170,39 @@ export function analyzeExerciseProgression(exerciseId, {
     let hitCount = 0;
 
     completedSets.forEach(s => {
-      const repVal = isTimed ? (s.durationSeconds || 0) : (s.reps || 0);
+      const rawReps = s.reps ?? s.actualReps ?? 0;
+      const repNum = Number.isFinite(Number(rawReps)) ? Math.max(0, Number(rawReps)) : 0;
+      const rawDur = s.durationSeconds ?? s.duration ?? 0;
+      const durNum = Number.isFinite(Number(rawDur)) ? Math.max(0, Number(rawDur)) : 0;
+      const repVal = isTimed ? durNum : repNum;
+
+      const targetForSet = (s.targetReps !== undefined && s.targetReps !== null && Number.isFinite(Number(s.targetReps)) && Number(s.targetReps) > 0)
+        ? Number(s.targetReps)
+        : (isTimed ? (ex.targetDurationSec || 40) : targetReps);
+
       totalReps += repVal;
-      if (repVal >= (isTimed ? (ex.targetDurationSec || 40) : targetReps)) {
+      if (repVal >= targetForSet) {
         hitCount++;
       }
-      if (s.weightKg && s.weightKg > 0) {
-        totalWeight += s.weightKg;
+      const rawWeight = s.weightKg ?? s.weight;
+      if (rawWeight !== null && rawWeight !== undefined && Number.isFinite(Number(rawWeight)) && Number(rawWeight) > 0 && Number(rawWeight) <= 500) {
+        totalWeight += Number(rawWeight);
         weightCount++;
       }
     });
 
-    const avgReps = Math.round((totalReps / completedSets.length) * 10) / 10;
+    const avgReps = completedSets.length > 0 ? Math.round((totalReps / completedSets.length) * 10) / 10 : 0;
     const avgWeightKg = weightCount > 0 ? Math.round((totalWeight / weightCount) * 100) / 100 : null;
+
+    const minSetsRequired = Math.min(2, ex.defaultSets || 3);
+    const allHit = hitCount >= completedSets.length && completedSets.length >= minSetsRequired && hitCount > 0;
 
     return {
       hitTargetCount: hitCount,
       totalSets: completedSets.length,
       avgReps,
       avgWeightKg,
-      allHit: hitCount >= completedSets.length && completedSets.length >= 2
+      allHit
     };
   };
 
@@ -211,7 +245,13 @@ export function analyzeExerciseProgression(exerciseId, {
       // Weight progression
       let increment = 2.0; // Standard dumbbell increment in kg (~4.4 lb)
       if (isBarbell) increment = 2.5; // Standard barbell increment (2x 1.25kg plates)
-      if (unit === 'lb') increment = isBarbell ? 2.27 : 1.81; // ~5lb / ~4lb
+      let incrementLabel = `+${increment}kg`;
+
+      if (unit === 'lb') {
+        const lbInc = isBarbell ? 5.0 : 4.0;
+        increment = isBarbell ? 2.27 : 1.81; // ~5lb / ~4lb converted to kg
+        incrementLabel = `+${lbInc} lb`;
+      }
 
       const recommendedWeightKg = Math.round((currentWeightKg + increment) * 100) / 100;
       return {
@@ -226,17 +266,21 @@ export function analyzeExerciseProgression(exerciseId, {
         recommendedReps: targetReps,
         currentSets,
         recommendedSets: currentSets,
-        reason: `Target reps (${targetReps}) consistently completed across previous 2 consecutive sessions at ${currentWeightKg}kg. Progressive overload recommended (+${increment}kg).`,
+        reason: `Target reps (${targetReps}) consistently completed across previous 2 consecutive sessions at ${currentWeightKg}kg. Progressive overload recommended (${incrementLabel}).`,
         adaptationApplied: true
       };
     }
 
-    // Bodyweight or no logged weight: progress via reps
-    const recReps = Math.min(30, Math.round(currentReps + 2));
+    // Bodyweight or no logged weight: progress via reps (respecting ceiling)
+    const recReps = currentReps >= 30 ? Math.round(currentReps) : Math.min(30, Math.round(currentReps + 2));
+    const repReason = currentReps >= 30
+      ? `Target reps (${targetReps}) consistently completed. Peak bodyweight volume achieved (30+ reps); maintain high volume cadence.`
+      : `Target reps (${targetReps}) achieved on all sets across previous 2 consecutive sessions. Volume progression recommended (+2 reps).`;
+
     return {
       exerciseId: cleanId,
       exerciseName: ex.name,
-      action: PROGRESSION_ACTIONS.INCREASE_REPS,
+      action: currentReps >= 30 ? PROGRESSION_ACTIONS.MAINTAIN : PROGRESSION_ACTIONS.INCREASE_REPS,
       confidence: sessionsCount >= 3 ? 'HIGH' : 'MODERATE',
       sessionsEvaluated: sessionsCount,
       currentWeightKg: null,
@@ -245,8 +289,8 @@ export function analyzeExerciseProgression(exerciseId, {
       recommendedReps: recReps,
       currentSets,
       recommendedSets: currentSets,
-      reason: `Target reps (${targetReps}) achieved on all sets across previous 2 consecutive sessions. Volume progression recommended (+2 reps).`,
-      adaptationApplied: true
+      reason: repReason,
+      adaptationApplied: currentReps < 30
     };
   }
 
@@ -321,24 +365,46 @@ export function analyzeExerciseProgression(exerciseId, {
  * @param {Array<string>} [params.currentRoutineExerciseIds=[]] - Exercises already in today's routine
  * @returns {{ shouldRotate: boolean, replacementExercise: Object|null, reason: string }}
  */
-export function analyzeExerciseRotation({
-  exerciseId,
-  workoutHistory = [],
-  eligibleExercises = EXERCISES,
-  currentRoutineExerciseIds = []
-} = {}) {
+export function analyzeExerciseRotation(params = {}, legacyHistory = null, legacyEligible = null, legacyCurrentIds = null) {
+  let exerciseId = '';
+  let workoutHistory = [];
+  let eligibleExercises = EXERCISES;
+  let currentRoutineExerciseIds = [];
+
+  if (typeof params === 'string' || (params && typeof params === 'object' && !('workoutHistory' in params) && !('exerciseId' in params) && params.id)) {
+    exerciseId = typeof params === 'string' ? params : params.id;
+    if (Array.isArray(legacyHistory)) workoutHistory = legacyHistory;
+    if (Array.isArray(legacyEligible)) {
+      if (legacyEligible.length > 0 && typeof legacyEligible[0] === 'string' && !EXERCISES.some(e => e.id === legacyEligible[0])) {
+        const normalizedEq = normalizeEquipmentList(legacyEligible);
+        eligibleExercises = EXERCISES.filter(ex => isEquipmentCompatible(ex, normalizedEq));
+      } else {
+        eligibleExercises = legacyEligible;
+      }
+    }
+    if (Array.isArray(legacyCurrentIds)) currentRoutineExerciseIds = legacyCurrentIds;
+  } else if (params && typeof params === 'object') {
+    exerciseId = params.exerciseId || (params.exercise && params.exercise.id) || '';
+    workoutHistory = params.workoutHistory || [];
+    eligibleExercises = params.eligibleExercises || EXERCISES;
+    currentRoutineExerciseIds = params.currentRoutineExerciseIds || [];
+  }
+
   const cleanId = String(exerciseId || '').trim();
-  const currentEx = getExerciseById(cleanId);
+  const currentEx = getExerciseById(cleanId) || (params && typeof params === 'object' && params.id === cleanId ? params : null);
 
   if (!cleanId || !currentEx) {
     return { shouldRotate: false, replacementExercise: null, reason: 'Exercise not found.' };
   }
 
   // Analyze the last 3-5 completed workouts for repetition
-  const recentWorkouts = (workoutHistory || [])
-    .filter(r => r && r.completedAt)
-    .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())
-    .slice(0, 5);
+  const hasTimestamps = (workoutHistory || []).some(r => r && (r.completedAt || r.date || r.timestamp));
+  const recentWorkouts = hasTimestamps
+    ? (workoutHistory || [])
+        .filter(r => r && (r.completedAt || r.date || r.timestamp))
+        .sort((a, b) => new Date(b.completedAt || b.date || b.timestamp).getTime() - new Date(a.completedAt || a.date || a.timestamp).getTime())
+        .slice(0, 5)
+    : (workoutHistory || []).slice(0, 5);
 
   if (recentWorkouts.length < 3) {
     return {
@@ -427,9 +493,18 @@ export function analyzeExerciseRotation({
     };
   }
 
+  // Anti-ping-ponging: If multiple candidates match, prioritize ones not performed in the last 2 workouts
+  const recentExIds = new Set();
+  recentWorkouts.slice(0, 2).forEach(w => {
+    extractExerciseIds(w).forEach(id => recentExIds.add(id));
+  });
+
+  const preferredCandidates = candidates.filter(c => !recentExIds.has(c.id));
+  const candidatePool = preferredCandidates.length > 0 ? preferredCandidates : candidates;
+
   // Select the best alternative (prioritize matching movement pattern)
-  const patternMatches = candidates.filter(c => c.movementPattern === movementPattern);
-  const selectedReplacement = patternMatches.length > 0 ? patternMatches[0] : candidates[0];
+  const patternMatches = candidatePool.filter(c => c.movementPattern === movementPattern);
+  const selectedReplacement = patternMatches.length > 0 ? patternMatches[0] : candidatePool[0];
 
   const targetMuscleLabel = primaryMuscles.length > 0
     ? primaryMuscles[0].charAt(0).toUpperCase() + primaryMuscles[0].slice(1)

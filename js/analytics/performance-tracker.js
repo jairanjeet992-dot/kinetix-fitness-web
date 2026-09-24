@@ -68,8 +68,8 @@ export function kgToLbs(kg) {
  * @returns {string} Formatted string, e.g. "24 kg" or "52.9 lb".
  */
 export function formatWeight(weightKg, unit = 'kg') {
-  if (!Number.isFinite(weightKg) || weightKg <= 0) return '0 kg';
   const u = String(unit).toLowerCase().trim() === 'lb' ? 'lb' : 'kg';
+  if (!Number.isFinite(weightKg) || weightKg <= 0) return u === 'lb' ? '0 lb' : '0 kg';
   if (u === 'lb') {
     return `${kgToLbs(weightKg)} lb`;
   }

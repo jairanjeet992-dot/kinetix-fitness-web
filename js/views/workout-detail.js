@@ -5,8 +5,12 @@
 
 import { getWorkoutById } from '../data/workouts.js';
 import { getExerciseById } from '../data/exercises.js';
+import { formatWeight } from '../analytics/performance-tracker.js';
+import { getProfile } from '../state/profile.js';
 
 export function renderWorkoutDetail(container, workoutId) {
+  const profile = getProfile();
+  const userUnit = (profile.unit || 'kg').toLowerCase();
   const workout = getWorkoutById(workoutId) || getWorkoutById('metabolic-ignition');
 
   if (!workout) {
@@ -144,7 +148,7 @@ export function renderWorkoutDetail(container, workoutId) {
                   <span>${ex.name}</span>
                   ${ex.targetWeightKg ? `
                     <span class="badge" style="background: rgba(46, 204, 113, 0.15); color: #2ecc71; border: 1px solid rgba(46, 204, 113, 0.4); font-size: 11px;">
-                      Target: ${ex.targetWeightKg} kg
+                      Target: ${formatWeight(ex.targetWeightKg, userUnit)}
                     </span>
                   ` : ''}
                 </div>
