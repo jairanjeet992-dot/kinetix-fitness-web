@@ -33,10 +33,16 @@ export function sanitizeMediaUrl(url) {
   if (typeof url !== 'string') return null;
   const trimmed = url.trim();
   if (!trimmed || trimmed.length > 2048) return null;
-  // Disallow dangerous protocols
-  if (/^(javascript|vbscript|data:(?!image\/))/i.test(trimmed)) return null;
-  // Allow safe protocols or relative/asset paths
-  if (/^(https?:|\/|\.\/|assets\/|images\/|data:image\/)/i.test(trimmed)) {
+  // Disallow script-capable protocols and SVG/HTML data URIs.
+  if (/^(javascript|vbscript):/i.test(trimmed)) return null;
+
+  // Only allow common raster data images. SVG data URIs are intentionally rejected
+  // because SVG can contain active script/content and is not needed by the media layer.
+  const safeDataImage = /^data:image\/(?:png|jpe?g|gif|webp|avif);base64,/i.test(trimmed);
+  if (/^data:/i.test(trimmed) && !safeDataImage) return null;
+
+  // Allow HTTPS or local/asset paths.
+  if (/^(https?:|\/|\.\/|assets\/|images\/)/i.test(trimmed) || safeDataImage) {
     return trimmed.replace(/"/g, '%22').replace(/'/g, '%27').replace(/</g, '%3C').replace(/>/g, '%3E');
   }
   return null;
