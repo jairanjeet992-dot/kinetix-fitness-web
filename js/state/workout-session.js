@@ -1,12 +1,13 @@
 /**
  * WORKOUT SESSION STATE & PERSISTENCE - KINETIX
- * Phase 3: Real Guided Workout Session Engine
+ * Phase 3 & 3.1: Real Guided Workout Session Engine & Hardened State Machine
  *
  * Dedicated state management for active workout execution:
  * - Session lifecycle (IDLE, EXERCISE, REST, COMPLETED, PAUSED)
  * - Multi-set progression and accurate countdown/reps tracking
- * - True reload/crash recovery without resetting timers
- * - Lightweight localStorage history persistence
+ * - Bounded wall-clock state-machine recovery loop across arbitrary elapsed time
+ * - Deterministic Previous navigation rollback model with stats reconciliation
+ * - Lightweight localStorage history persistence with idempotent completion guards
  * - Safety guards against duplicate completion, missing data, and invalid states
  */
 
@@ -208,26 +209,98 @@ export function clearActiveSession() {
 }
 
 /**
- * Recovers active session state on browser reload/crash, calculating elapsed time.
+ * Recovers active session state on browser reload/crash/backgrounding.
+ *
+ * Implements a bounded state-machine recovery loop:
+ * - Calculates total wall-clock elapsed time.
+ * - Paused sessions preserve their remaining countdown without consuming wall time.
+ * - Timed exercises and rest intervals advance phase-by-phase as time elapses.
+ * - Rep-based exercises DO NOT auto-complete from wall time (waits for athlete input).
+ * - Completed sessions are never recovered/replayed.
+ * - Includes a hard safety iteration limit to protect against corrupt data.
  */
 export function recoverSession(session, workout) {
   if (!session || session.isCompleted) return session;
   if (session.isPaused) return session; // Paused sessions preserve their exact remaining time
 
   const now = Date.now();
-  const lastActive = session.lastTickAt || session.phaseStartedAt || now;
-  const deltaSec = Math.max(0, Math.floor((now - lastActive) / 1000));
+  const lastActive = session.lastTickAt || session.phaseStartedAt;
 
-  if (deltaSec > 0) {
-    session.elapsedSeconds = (session.elapsedSeconds || 0) + deltaSec;
+  // Validate timestamps - safe handling of corrupt/invalid/future timestamps
+  if (typeof lastActive !== 'number' || isNaN(lastActive) || lastActive <= 0 || lastActive > now + 60000) {
     session.lastTickAt = now;
-
-    if (session.phase === 'REST' || (session.phase === 'EXERCISE' && session.remainingSeconds > 0)) {
-      session.remainingSeconds = Math.max(0, session.remainingSeconds - deltaSec);
-    }
+    session.phaseStartedAt = now;
     saveActiveSession(session);
+    return session;
   }
 
+  const elapsedWallSec = Math.max(0, Math.floor((now - lastActive) / 1000));
+  if (elapsedWallSec === 0) {
+    session.lastTickAt = now;
+    return session;
+  }
+
+  // Account for all elapsed wall-clock time in overall workout duration
+  session.elapsedSeconds = (session.elapsedSeconds || 0) + elapsedWallSec;
+  session.lastTickAt = now;
+
+  const routine = getRoutineItems(workout);
+  if (!routine || routine.length === 0) {
+    saveActiveSession(session);
+    return session;
+  }
+
+  // Bounded state-machine recovery loop
+  let remainingWallSec = elapsedWallSec;
+  let iterations = 0;
+  const MAX_ITERATIONS = Math.max(100, routine.length * 20);
+
+  while (remainingWallSec > 0 && !session.isCompleted && iterations < MAX_ITERATIONS) {
+    iterations++;
+    const safeIdx = Math.min(Math.max(0, session.currentExerciseIndex || 0), routine.length - 1);
+    const currentEx = routine[safeIdx];
+    if (!currentEx) break;
+
+    if (session.phase === 'REST') {
+      const restRemaining = Math.max(0, session.remainingSeconds || 0);
+      if (remainingWallSec >= restRemaining) {
+        // Rest interval completely expired while user was away
+        remainingWallSec -= restRemaining;
+        session = skipRest(session, workout);
+        // session.phase is now 'EXERCISE'
+      } else {
+        // Returned partway through rest interval
+        session.remainingSeconds = restRemaining - remainingWallSec;
+        remainingWallSec = 0;
+      }
+    } else if (session.phase === 'EXERCISE') {
+      if (currentEx.isTimed) {
+        const exRemaining = Math.max(0, session.remainingSeconds || 0);
+        if (remainingWallSec >= exRemaining) {
+          // Timed exercise interval completely expired while user was away
+          remainingWallSec -= exRemaining;
+          session = completeSet(session, workout);
+          // session.phase is now 'REST' or 'COMPLETED'
+        } else {
+          // Returned partway through timed exercise
+          session.remainingSeconds = exRemaining - remainingWallSec;
+          remainingWallSec = 0;
+        }
+      } else {
+        // REP-BASED EXERCISE:
+        // Must NOT automatically complete from elapsed wall time.
+        // Stop consuming remaining countdown so user can manually perform/complete set.
+        remainingWallSec = 0;
+      }
+    } else {
+      // Completed or terminal state
+      break;
+    }
+  }
+
+  session.phaseStartedAt = now;
+  session.lastTickAt = now;
+  saveActiveSession(session);
   return session;
 }
 
@@ -283,6 +356,8 @@ export function completeSet(session, workout) {
   if (!session.completedExercises.includes(currentEx.id)) {
     session.completedExercises.push(currentEx.id);
   }
+  // Ensure if it was previously marked skipped, clean from skippedExercises
+  session.skippedExercises = (session.skippedExercises || []).filter(id => id !== currentEx.id);
 
   if (session.currentExerciseIndex < routine.length - 1) {
     // Move to next exercise with rest interval in between
@@ -338,6 +413,10 @@ export function skipExercise(session, workout) {
   if (currentEx && !session.skippedExercises.includes(currentEx.id)) {
     session.skippedExercises.push(currentEx.id);
   }
+  // If previously marked completed, clean up
+  if (currentEx) {
+    session.completedExercises = (session.completedExercises || []).filter(id => id !== currentEx.id);
+  }
 
   if (session.currentExerciseIndex < routine.length - 1) {
     session.currentExerciseIndex++;
@@ -363,35 +442,100 @@ export function skipExercise(session, workout) {
 }
 
 /**
- * Returns to previous exercise/set where safe.
+ * Returns to previous exercise/set with deterministic state rollback.
+ *
+ * DETERMINISTIC ROLLBACK MODEL:
+ * 1. If currently in REST phase:
+ *    - The user completed a set just before entering REST.
+ *    - Resting between sets of the same exercise (currentSet > 1):
+ *      Rewind back to (currentSet - 1) in EXERCISE phase, decrementing completedSets.
+ *    - Resting between exercises (currentSet === 1 and currentExerciseIndex > 0):
+ *      Rewind back to the final set of (currentExerciseIndex - 1) in EXERCISE phase,
+ *      decrementing completedSets and removing the previous exercise from completedExercises/skippedExercises.
+ *
+ * 2. If currently in EXERCISE phase:
+ *    - If currentSet > 1:
+ *      Rewind to (currentSet - 1) in EXERCISE phase, decrementing completedSets.
+ *    - If currentSet === 1 and currentExerciseIndex > 0:
+ *      Rewind to the final set of (currentExerciseIndex - 1) in EXERCISE phase,
+ *      decrementing completedSets and removing the previous exercise from completedExercises/skippedExercises.
+ *    - If at Exercise 0, Set 1:
+ *      Cannot rewind further; state remains safely unchanged.
  */
 export function previousExercise(session, workout) {
   if (!session || session.isCompleted) return session;
 
   const routine = getRoutineItems(workout);
+  if (!routine || routine.length === 0) return session;
 
-  // If in rest phase, back out of rest to current exercise
+  // Case 1: In REST phase
   if (session.phase === 'REST') {
-    session.phase = 'EXERCISE';
-    const currentEx = routine[session.currentExerciseIndex];
-    if (currentEx && currentEx.isTimed) {
-      session.remainingSeconds = currentEx.targetDurationSec;
-      session.phaseDurationSec = currentEx.targetDurationSec;
+    if (session.currentSet > 1) {
+      // Resting after completing (currentSet - 1). Rewind back to that set.
+      session.currentSet = session.currentSet - 1;
+      session.completedSets = Math.max(0, (session.completedSets || 0) - 1);
+      session.phase = 'EXERCISE';
+
+      const currentEx = routine[session.currentExerciseIndex];
+      if (currentEx && currentEx.isTimed) {
+        session.remainingSeconds = currentEx.targetDurationSec;
+        session.phaseDurationSec = currentEx.targetDurationSec;
+      } else {
+        session.remainingSeconds = 0;
+        session.phaseDurationSec = 0;
+      }
+      session.phaseStartedAt = Date.now();
+      session.lastTickAt = Date.now();
+      saveActiveSession(session);
+      return session;
+    } else if (session.currentExerciseIndex > 0) {
+      // Resting after completing previous exercise. Rewind to final set of that exercise.
+      session.currentExerciseIndex = session.currentExerciseIndex - 1;
+      const prevEx = routine[session.currentExerciseIndex];
+      session.totalSets = prevEx.totalSets;
+      session.currentSet = prevEx.totalSets;
+      session.completedSets = Math.max(0, (session.completedSets || 0) - 1);
+
+      // Reconcile completed & skipped records
+      session.completedExercises = (session.completedExercises || []).filter(id => id !== prevEx.id);
+      session.skippedExercises = (session.skippedExercises || []).filter(id => id !== prevEx.id);
+      session.phase = 'EXERCISE';
+
+      if (prevEx.isTimed) {
+        session.remainingSeconds = prevEx.targetDurationSec;
+        session.phaseDurationSec = prevEx.targetDurationSec;
+      } else {
+        session.remainingSeconds = 0;
+        session.phaseDurationSec = 0;
+      }
+      session.phaseStartedAt = Date.now();
+      session.lastTickAt = Date.now();
+      saveActiveSession(session);
+      return session;
     }
+
+    // At index 0, set 1: simply cancel rest and return to exercise
+    session.phase = 'EXERCISE';
     session.phaseStartedAt = Date.now();
     session.lastTickAt = Date.now();
     saveActiveSession(session);
     return session;
   }
 
-  // If beyond first set, go back one set
+  // Case 2: In EXERCISE phase
   if (session.currentSet > 1) {
-    session.currentSet--;
+    // Rewind one set within same exercise
+    session.currentSet = session.currentSet - 1;
+    session.completedSets = Math.max(0, (session.completedSets || 0) - 1);
     session.phase = 'EXERCISE';
+
     const currentEx = routine[session.currentExerciseIndex];
     if (currentEx && currentEx.isTimed) {
       session.remainingSeconds = currentEx.targetDurationSec;
       session.phaseDurationSec = currentEx.targetDurationSec;
+    } else {
+      session.remainingSeconds = 0;
+      session.phaseDurationSec = 0;
     }
     session.phaseStartedAt = Date.now();
     session.lastTickAt = Date.now();
@@ -399,16 +543,25 @@ export function previousExercise(session, workout) {
     return session;
   }
 
-  // If beyond first exercise, go back to previous exercise
   if (session.currentExerciseIndex > 0) {
-    session.currentExerciseIndex--;
+    // Rewind to previous exercise's final set
+    session.currentExerciseIndex = session.currentExerciseIndex - 1;
     const prevEx = routine[session.currentExerciseIndex];
-    session.currentSet = 1;
     session.totalSets = prevEx.totalSets;
+    session.currentSet = prevEx.totalSets;
+    session.completedSets = Math.max(0, (session.completedSets || 0) - 1);
+
+    // Reconcile completed & skipped records
+    session.completedExercises = (session.completedExercises || []).filter(id => id !== prevEx.id);
+    session.skippedExercises = (session.skippedExercises || []).filter(id => id !== prevEx.id);
     session.phase = 'EXERCISE';
+
     if (prevEx.isTimed) {
       session.remainingSeconds = prevEx.targetDurationSec;
       session.phaseDurationSec = prevEx.targetDurationSec;
+    } else {
+      session.remainingSeconds = 0;
+      session.phaseDurationSec = 0;
     }
     session.phaseStartedAt = Date.now();
     session.lastTickAt = Date.now();
@@ -416,16 +569,17 @@ export function previousExercise(session, workout) {
     return session;
   }
 
+  // At Exercise 0, Set 1: cannot rewind further
   return session;
 }
 
 /**
  * Completes the workout session and records it in local workout history.
- * Prevents duplicate completion.
+ * Prevents duplicate completion (strictly idempotent).
  */
 export function completeWorkout(session, workout) {
   if (!session) return null;
-  if (session.isCompleted) return session;
+  if (session.isCompleted) return session; // Idempotent guard
 
   session.phase = 'COMPLETED';
   session.isCompleted = true;
@@ -433,7 +587,7 @@ export function completeWorkout(session, workout) {
   session.updatedAt = new Date().toISOString();
 
   const durationSec = Math.max(1, session.elapsedSeconds || 1);
-  const estCalories = (workout && workout.estimatedCalories)
+  const estCalories = (workout && typeof workout.estimatedCalories === 'number')
     ? workout.estimatedCalories
     : Math.max(10, Math.round((durationSec / 60) * 7.5));
 
@@ -445,7 +599,7 @@ export function completeWorkout(session, workout) {
     completedAt: new Date().toISOString(),
     durationSeconds: durationSec,
     exercisesCompleted: (session.completedExercises || []).length,
-    setsCompleted: session.completedSets || 0,
+    setsCompleted: Math.max(0, session.completedSets || 0),
     skippedExercises: (session.skippedExercises || []).length,
     estimatedCalories: estCalories
   };
@@ -464,7 +618,9 @@ export function getWorkoutHistory() {
     const raw = localStorage.getItem(STORAGE_KEY_HISTORY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    // Sanitize records
+    return parsed.filter(item => item && typeof item === 'object' && typeof item.sessionId === 'string');
   } catch (err) {
     console.warn('Failed to parse workout history from localStorage:', err);
     return [];
@@ -475,7 +631,7 @@ export function getWorkoutHistory() {
  * Saves a workout completion record to history, preventing duplicate session entries.
  */
 export function saveWorkoutHistoryRecord(record) {
-  if (!record || !record.sessionId) return false;
+  if (!record || typeof record !== 'object' || typeof record.sessionId !== 'string') return false;
   try {
     if (typeof localStorage === 'undefined') return false;
     const history = getWorkoutHistory();
@@ -493,6 +649,12 @@ export function saveWorkoutHistoryRecord(record) {
 
 /**
  * Calculates current and overall progress metrics from session state and routine items.
+ *
+ * Guarantees:
+ * - Never negative
+ * - Never exceeds 100%
+ * - Monotonic during forward execution
+ * - Immediately reaches 100% upon completion
  */
 export function calculateWorkoutProgress(session, routine) {
   if (!session || !routine || routine.length === 0) {
@@ -508,16 +670,19 @@ export function calculateWorkoutProgress(session, routine) {
     totalRoutineSets += (item.totalSets || 1);
   });
 
-  const completedSets = Math.min(session.completedSets || 0, totalRoutineSets);
-  const overallPercent = totalRoutineSets > 0
-    ? (session.isCompleted ? 100 : Math.min(99, Math.round((completedSets / totalRoutineSets) * 100)))
-    : 0;
+  const completedSets = Math.min(Math.max(0, session.completedSets || 0), totalRoutineSets);
+  let overallPercent = 0;
+  if (session.isCompleted) {
+    overallPercent = 100;
+  } else if (totalRoutineSets > 0) {
+    overallPercent = Math.min(99, Math.round((completedSets / totalRoutineSets) * 100));
+  }
 
   return {
     exerciseIndex: currentExerciseIndex + 1,
     totalExercises,
-    overallPercent,
-    currentSet: session.currentSet || 1,
+    overallPercent: Math.max(0, Math.min(100, overallPercent)),
+    currentSet: Math.max(1, Math.min(session.currentSet || 1, (currentItem && currentItem.totalSets) || 1)),
     totalSets: (currentItem && currentItem.totalSets) || 1
   };
 }

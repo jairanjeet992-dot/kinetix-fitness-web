@@ -395,6 +395,202 @@ assert(homeContainer.innerHTML.includes('Resume "Metabolic Ignition HIIT"?'), '1
 assert(homeContainer.innerHTML.includes('btn-resume-session'), '11.9 Resume button rendered in banner');
 assert(homeContainer.innerHTML.includes('btn-discard-session'), '11.10 Discard button rendered in banner');
 
+// ----------------------------------------------------
+// Test Suite 12: Phase 3.1 Hardening Tests (A through T)
+// ----------------------------------------------------
+console.log('\nTest Suite 12: Phase 3.1 Hardening Tests (Requirements A - T)');
+_resetSessionStorageForTesting();
+
+// Create a workout with a timed exercise and rest for precision testing
+const timedWorkout = {
+  id: 'test-timed-routine',
+  title: 'Timed Routine',
+  rounds: 2,
+  restBetweenExercisesSec: 20,
+  exerciseIds: ['forearm-plank', 'push-up'] // forearm-plank is timed (40s), push-up is rep-based
+};
+
+// Requirement A: Reload during timed exercise
+_resetSessionStorageForTesting();
+const sessionA = initSession(timedWorkout); // Starts on forearm-plank (timed 45s)
+assert(sessionA.remainingSeconds === 45, '12.A.1 Initial timed exercise countdown is 45s');
+sessionA.lastTickAt = Date.now() - 15000; // 15s elapsed while closed
+const recoveredA = recoverSession(sessionA, timedWorkout);
+assert(recoveredA.remainingSeconds === 30, '12.A.2 Reload during timed exercise leaves 30s remaining (45s - 15s)');
+assert(recoveredA.phase === 'EXERCISE', '12.A.3 Phase remains EXERCISE');
+assert(recoveredA.elapsedSeconds === 15, '12.A.4 elapsedSeconds increased by 15s');
+
+// Requirement B: Reload during rest
+_resetSessionStorageForTesting();
+const sessionB = initSession(timedWorkout);
+sessionB.phase = 'REST';
+sessionB.remainingSeconds = 30;
+sessionB.lastTickAt = Date.now() - 10000; // 10s elapsed
+const recoveredB = recoverSession(sessionB, timedWorkout);
+assert(recoveredB.remainingSeconds === 20, '12.B.1 Reload during rest leaves 20s remaining (30s - 10s)');
+assert(recoveredB.phase === 'REST', '12.B.2 Phase remains REST');
+
+// Requirement C: Reload after enough time to cross one phase (landing on rep-based Push-Up)
+_resetSessionStorageForTesting();
+const sessionC = initSession(timedWorkout);
+// Advance to final set of exercise 0 (Set 2 of 2)
+sessionC.currentSet = 2;
+// Complete final set of forearm-plank -> enters REST before Push-Up (Exercise 1)
+completeSet(sessionC, timedWorkout);
+assert(sessionC.phase === 'REST', '12.C.0 Enters REST before exercise 1 (Push-Up)');
+sessionC.remainingSeconds = 15;
+sessionC.lastTickAt = Date.now() - 25000; // 25s elapsed (15s rest + 10s into Push-Up)
+const recoveredC = recoverSession(sessionC, timedWorkout);
+assert(recoveredC.phase === 'EXERCISE', '12.C.1 Rest expired during absence; transitioned to EXERCISE');
+assert(recoveredC.currentExerciseIndex === 1, '12.C.2 Advanced to Exercise index 1 (Push-Up)');
+assert(recoveredC.remainingSeconds === 0, '12.C.3 Landed on rep-based exercise with 0s countdown');
+assert(recoveredC.elapsedSeconds >= 25, '12.C.4 Full 25s elapsed time accounted for');
+
+// Requirement D: Reload after enough time to cross multiple phases
+_resetSessionStorageForTesting();
+// Workout with consecutive timed movements
+const multiTimedWorkout = {
+  id: 'multi-timed-routine',
+  title: 'Multi Timed Routine',
+  rounds: 1,
+  restBetweenExercisesSec: 15,
+  exerciseIds: ['forearm-plank', 'standing-quad-stretch'] // both timed (45s and 30s)
+};
+const sessionD = initSession(multiTimedWorkout);
+sessionD.phase = 'EXERCISE';
+sessionD.remainingSeconds = 10; // 10s left on forearm-plank
+// Total time to elapse: 10s (ex 1) + 15s (rest) + 12s (ex 2) = 37s
+sessionD.lastTickAt = Date.now() - 37000;
+const recoveredD = recoverSession(sessionD, multiTimedWorkout);
+assert(recoveredD.currentExerciseIndex === 1, '12.D.1 Advanced through ex 1 and rest to exercise index 1');
+assert(recoveredD.phase === 'EXERCISE', '12.D.2 Currently in EXERCISE phase of second timed movement');
+assert(recoveredD.remainingSeconds === 18, `12.D.3 Second timed movement countdown at 18s (was 30s - 12s, actual: ${recoveredD.remainingSeconds}s)`);
+
+// Requirement E: Reload while paused must NOT consume wall-clock time
+_resetSessionStorageForTesting();
+const sessionE = initSession(timedWorkout);
+sessionE.remainingSeconds = 35;
+pauseSession(sessionE);
+sessionE.lastTickAt = Date.now() - 120000; // 2 minutes elapsed while paused
+const recoveredE = recoverSession(sessionE, timedWorkout);
+assert(recoveredE.isPaused === true, '12.E.1 Session remains paused');
+assert(recoveredE.remainingSeconds === 35, '12.E.2 Countdown preserved exactly (35s); no wall time consumed');
+assert(recoveredE.elapsedSeconds === 0, '12.E.3 Elapsed workout time did not advance while paused');
+
+// Requirement F: Reload with malformed timestamps
+_resetSessionStorageForTesting();
+const sessionF = initSession(timedWorkout);
+sessionF.lastTickAt = NaN;
+const recoveredF1 = recoverSession(sessionF, timedWorkout);
+assert(typeof recoveredF1.lastTickAt === 'number' && !isNaN(recoveredF1.lastTickAt), '12.F.1 NaN timestamp reset safely to now');
+sessionF.lastTickAt = Date.now() + 10000000; // Far future timestamp
+const recoveredF2 = recoverSession(sessionF, timedWorkout);
+assert(recoveredF2.remainingSeconds === 45, '12.F.2 Future timestamp handled safely without state distortion');
+
+// Requirement G: Previous from Set 2
+_resetSessionStorageForTesting();
+const sessionG = initSession(staticWorkout); // rounds: 3
+completeSet(sessionG, staticWorkout); // Set 1 complete -> in REST, currentSet is 2
+skipRest(sessionG, staticWorkout); // In EXERCISE, Set 2
+assert(sessionG.currentSet === 2 && sessionG.completedSets === 1, '12.G.1 Setup: In Set 2 with completedSets = 1');
+const prevG = previousExercise(sessionG, staticWorkout);
+assert(prevG.currentSet === 1, '12.G.2 Previous from Set 2 rewinds to Set 1');
+assert(prevG.completedSets === 0, '12.G.3 completedSets decremented to 0');
+assert(prevG.phase === 'EXERCISE', '12.G.4 Phase is EXERCISE');
+
+// Requirement H: Previous from Set 1 (to previous exercise)
+_resetSessionStorageForTesting();
+const sessionH = initSession(staticWorkout);
+// Complete all 3 sets of Exercise 0 to advance to Exercise 1
+completeSet(sessionH, staticWorkout); skipRest(sessionH, staticWorkout);
+completeSet(sessionH, staticWorkout); skipRest(sessionH, staticWorkout);
+completeSet(sessionH, staticWorkout); skipRest(sessionH, staticWorkout);
+assert(sessionH.currentExerciseIndex === 1, '12.H.1 Advanced to exercise index 1');
+assert(sessionH.currentSet === 1, '12.H.2 At Set 1 of exercise index 1');
+assert(sessionH.completedSets === 3, '12.H.3 completedSets is 3');
+
+const prevH = previousExercise(sessionH, staticWorkout);
+assert(prevH.currentExerciseIndex === 0, '12.H.4 Previous from Set 1 rewinds to previous exercise (index 0)');
+assert(prevH.currentSet === 3, '12.H.5 Rewinds to final set of previous exercise (Set 3)');
+assert(prevH.completedSets === 2, '12.H.6 completedSets decremented to 2');
+
+// Requirement I: Previous after completed exercise removes from completedExercises
+assert(!prevH.completedExercises.includes(staticWorkout.exerciseIds[0]), '12.I.1 Previous exercise ID removed from completedExercises upon rewind');
+
+// Requirement J: Replay after Previous does not create duplicate completedExercises
+completeSet(prevH, staticWorkout); // Complete set 3 again
+assert(prevH.completedExercises.filter(id => id === staticWorkout.exerciseIds[0]).length === 1, '12.J.1 Replaying exercise adds ID exactly once without duplicates');
+
+// Requirement K: completedSets consistency (cannot go negative)
+_resetSessionStorageForTesting();
+const sessionK = initSession(staticWorkout);
+previousExercise(sessionK, staticWorkout);
+previousExercise(sessionK, staticWorkout);
+assert(sessionK.completedSets === 0, '12.K.1 Repeated Previous calls at start never produce negative completedSets');
+assert(sessionK.currentSet === 1, '12.K.2 currentSet remains 1');
+
+// Requirement L: completedExercises consistency
+_resetSessionStorageForTesting();
+const sessionL = initSession(staticWorkout);
+completeSet(sessionL, staticWorkout); skipRest(sessionL, staticWorkout);
+completeSet(sessionL, staticWorkout); skipRest(sessionL, staticWorkout);
+completeSet(sessionL, staticWorkout); // finished exercise 0
+const ex0Id = staticWorkout.exerciseIds[0];
+assert(sessionL.completedExercises.includes(ex0Id), '12.L.1 Exercise recorded in completedExercises');
+assert(new Set(sessionL.completedExercises).size === sessionL.completedExercises.length, '12.L.2 completedExercises has unique entries only');
+
+// Requirement M: skippedExercises consistency
+_resetSessionStorageForTesting();
+const sessionM = initSession(staticWorkout);
+const skipId = staticWorkout.exerciseIds[0];
+skipExercise(sessionM, staticWorkout);
+assert(sessionM.skippedExercises.includes(skipId), '12.M.1 Skipped exercise recorded in skippedExercises');
+// Previous back to skipped exercise
+previousExercise(sessionM, staticWorkout);
+assert(!sessionM.skippedExercises.includes(skipId), '12.M.2 Rewinding back to skipped exercise removes it from skippedExercises');
+
+// Requirement N: Progress calculation after rewind
+const progAfterRewind = calculateWorkoutProgress(sessionM, staticRoutine);
+assert(progAfterRewind.overallPercent >= 0 && progAfterRewind.overallPercent <= 100, `12.N.1 Progress after rewind is valid percentage: ${progAfterRewind.overallPercent}%`);
+assert(progAfterRewind.exerciseIndex === 1, '12.N.2 Progress reflects rewound exercise index 1');
+
+// Requirement O: Duplicate completion is idempotent
+_resetSessionStorageForTesting();
+const sessionO = initSession(staticWorkout);
+sessionO.elapsedSeconds = 1200;
+const completedO = completeWorkout(sessionO, staticWorkout);
+assert(completedO.isCompleted === true, '12.O.1 Initial completion marked true');
+const reCompletedO = completeWorkout(completedO, staticWorkout);
+assert(reCompletedO.isCompleted === true, '12.O.2 Repeated completion is strictly idempotent');
+
+// Requirement P: Duplicate history prevention
+const historyO = getWorkoutHistory();
+assert(historyO.filter(h => h.sessionId === sessionO.sessionId).length === 1, '12.P.1 Exactly one history record stored for session');
+
+// Requirement Q: Corrupted history handling
+localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify([null, "corrupted", { invalid: true }, { sessionId: "valid-1", title: "Test" }]));
+const sanitizedHistory = getWorkoutHistory();
+assert(sanitizedHistory.length === 1, '12.Q.1 Sanitized history filters out invalid records and retains valid entry');
+assert(sanitizedHistory[0].sessionId === 'valid-1', '12.Q.2 Retained record has valid sessionId');
+
+// Requirement R: Timer boundary at exactly zero
+_resetSessionStorageForTesting();
+const sessionR = initSession(timedWorkout);
+sessionR.remainingSeconds = 20;
+sessionR.lastTickAt = Date.now() - 20000; // Exactly 20s
+const recoveredR = recoverSession(sessionR, timedWorkout);
+assert(recoveredR.phase === 'REST', '12.R.1 Wall time matching remaining time exactly advances phase cleanly');
+
+// Requirement S: Timer cannot go negative
+assert(recoveredR.remainingSeconds >= 0, '12.S.1 remainingSeconds is strictly non-negative');
+
+// Requirement T: Completed session recovery
+const sessionT = initSession(staticWorkout);
+sessionT.isCompleted = true;
+sessionT.lastTickAt = Date.now() - 500000;
+const recoveredT = recoverSession(sessionT, staticWorkout);
+assert(recoveredT.isCompleted === true, '12.T.1 Completed session is never re-executed or replayed upon recovery');
+
 console.log('\n====================================================');
 console.log(`TOTAL TESTS: ${totalTests} | PASSED: ${passedTests} | FAILED: ${failedTests}`);
 console.log('====================================================');
@@ -402,5 +598,5 @@ console.log('====================================================');
 if (failedTests > 0) {
   process.exit(1);
 } else {
-  console.log('\n🎉 ALL PHASE 3 WORKOUT PLAYER TESTS PASSED!\n');
+  console.log('\n🎉 ALL PHASE 3 & PHASE 3.1 TESTS PASSED!\n');
 }

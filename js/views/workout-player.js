@@ -56,6 +56,12 @@ function formatDuration(sec) {
 export function renderWorkoutPlayer(container, workoutId) {
   if (!container) return;
 
+  // 1. Clean up any existing timer running on this container
+  if (typeof container._kinetixStopTimer === 'function') {
+    container._kinetixStopTimer();
+    container._kinetixStopTimer = null;
+  }
+
   // 1. Resolve Workout
   if (!workoutId) {
     renderMissingWorkout(container, 'No workout ID was provided.');
@@ -104,6 +110,7 @@ function startPlayerView(container, workout, routine, initialSession) {
   let session = initialSession;
   let timerInterval = null;
   let ticksSinceLastSave = 0;
+  let isAdvancing = false;
 
   function stopTimer() {
     if (timerInterval) {
@@ -111,6 +118,8 @@ function startPlayerView(container, workout, routine, initialSession) {
       timerInterval = null;
     }
   }
+
+  container._kinetixStopTimer = stopTimer;
 
   function startTimer() {
     stopTimer();
@@ -135,9 +144,12 @@ function startPlayerView(container, workout, routine, initialSession) {
         }
 
         if (session.remainingSeconds <= 0) {
+          if (isAdvancing) return;
+          isAdvancing = true;
           // Rest timer expired -> auto advance to next exercise/set
           session = skipRest(session, workout);
           renderUI();
+          isAdvancing = false;
           return;
         }
       } else if (session.phase === 'EXERCISE' && currentEx.isTimed) {
@@ -148,9 +160,12 @@ function startPlayerView(container, workout, routine, initialSession) {
         }
 
         if (session.remainingSeconds <= 0) {
+          if (isAdvancing) return;
+          isAdvancing = true;
           // Timed exercise interval expired -> auto complete set
           session = completeSet(session, workout);
           renderUI();
+          isAdvancing = false;
           return;
         }
       }
