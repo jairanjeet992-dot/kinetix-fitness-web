@@ -257,3 +257,38 @@
 .exercise-action {
   flex-shrink: 0;
 }
+
+
+/* ==========================================================================
+   Clean Fitness 3D Exercise Visual System — Phase 9.3
+   Runtime-generated; no per-exercise binary asset required.
+   ========================================================================== */
+.exercise-visual-thumbnail {
+  --visual-orange: #FF542E;
+  position: relative;
+  width: 100%;
+  min-height: 164px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  isolation: isolate;
+  background: radial-gradient(circle at 50% 40%, rgba(255,84,46,.13), transparent 34%), linear-gradient(145deg,#17191e 0%,#0d0e11 58%,#08090b 100%);
+  border: 1px solid rgba(255,255,255,.08);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+}
+.exercise-visual-thumbnail.is-compact { min-height: 72px; height: 72px; }
+.exercise-visual-glow { position:absolute; width:45%; aspect-ratio:1; left:28%; top:23%; border-radius:50%; background:rgba(255,84,46,.14); filter:blur(18px); z-index:-1; }
+.exercise-visual-grid { position:absolute; inset:0; opacity:.22; background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px); background-size:18px 18px; mask-image:linear-gradient(to bottom,transparent,black 25%,black 78%,transparent); }
+.exercise-visual-topline,.exercise-visual-bottomline { position:absolute; left:9px; right:9px; display:flex; align-items:center; justify-content:space-between; gap:6px; z-index:3; pointer-events:none; }
+.exercise-visual-topline { top:8px; }
+.exercise-visual-bottomline { bottom:7px; color:rgba(255,255,255,.72); font-size:9px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
+.exercise-visual-coach,.exercise-visual-pattern { border-radius:999px; padding:3px 6px; font-size:8px; font-weight:800; letter-spacing:.06em; background:rgba(0,0,0,.52); border:1px solid rgba(255,255,255,.10); color:#fff; backdrop-filter:blur(8px); }
+.exercise-visual-coach { color:var(--visual-orange); border-color:rgba(255,84,46,.35); }
+.exercise-visual-pattern { color:rgba(255,255,255,.76); }
+.exercise-visual-dot { width:5px; height:5px; border-radius:50%; background:var(--visual-orange); box-shadow:0 0 10px rgba(255,84,46,.75); }
+.exercise-visual-figure { position:absolute; inset:20px 10px 15px; display:grid; place-items:center; }
+.exercise-visual-figure .exercise-bio-svg { width:94%; height:94%; color:rgba(255,255,255,.88); filter:drop-shadow(0 5px 10px rgba(0,0,0,.42)); }
+.exercise-visual-ring { position:absolute; width:68px; aspect-ratio:1; border-radius:50%; border:1px solid rgba(255,84,46,.18); box-shadow:0 0 0 8px rgba(255,84,46,.025),inset 0 0 20px rgba(255,84,46,.05); }
+.exercise-visual-thumbnail .bio-muscle-pulse { filter:drop-shadow(0 0 5px rgba(255,84,46,.55)); }
+.exercise-card .exercise-visual-thumbnail { flex-shrink:0; }
+@media (prefers-reduced-motion:no-preference) { .exercise-visual-thumbnail .bio-muscle-pulse { animation:kinetix-visual-pulse 2.4s ease-in-out infinite; } }
+@keyframes kinetix-visual-pulse { 0%,100%{opacity:.72} 50%{opacity:1} }
