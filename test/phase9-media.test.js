@@ -365,9 +365,9 @@ libraryContainer.innerHTML = `
 renderExerciseLibrary(libraryContainer);
 const libraryHtml = libraryContainer.innerHTML;
 assert(libraryHtml.includes('exercise-card'), 'Exercise Library renders exercise cards');
-assert(libraryHtml.includes('exercise-thumb-img'), 'Pilot exercises render thumbnail images');
+assert(libraryHtml.includes('exercise-visual-thumbnail'), 'Exercise cards render scalable visual thumbnails');
 assert(libraryHtml.includes('Coach Kai'), 'Pilot exercise cards display Coach Kai badge');
-assert(libraryHtml.includes('exercise-thumb-svg'), 'Cards include hidden SVG fallback for thumbnails');
+assert(libraryHtml.includes('exercise-bio-svg'), 'Cards include deterministic biomechanical SVG movement layer');
 
 // ----------------------------------------------------
 // Test 14: Lazy-Loading & Preload Policy
@@ -377,7 +377,7 @@ assert(htmlSquat.includes('preload="none"'), 'Video uses preload="none" to preve
 assert(htmlSquat.includes('playsinline'), 'Video includes playsinline for seamless mobile playback');
 assert(htmlSquat.includes('muted'), 'Video includes muted for browser autoplay compliance');
 assert(htmlSquat.includes('loop'), 'Video includes loop for continuous form study');
-assert(libraryHtml.includes('loading="lazy"'), 'Library thumbnails enforce loading="lazy"');
+assert(!libraryHtml.includes('<video'), 'Exercise Library does not autoplay or embed video thumbnails');
 
 // ----------------------------------------------------
 // Test 15: Corrupted Media Metadata Resilience
