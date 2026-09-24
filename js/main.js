@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
   syncShellProfile();
 
   // Global settings: sync reduced-motion if user prefers
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  if (getProfile()?.settings?.reducedMotion || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     document.body.classList.add('reduced-motion');
   }
 
