@@ -11,6 +11,8 @@ import { generateAdaptiveWorkout } from '../engine/adaptive-workout-generator.js
 import { getActiveSession, clearActiveSession } from '../state/workout-session.js';
 import { getActivePlan, SESSION_TYPE } from '../state/training-plan.js';
 import { toDateString } from '../engine/plan-generator.js';
+import { getExerciseById } from '../data/exercises.js';
+import { renderExerciseVisualThumbnail } from '../components/exercise-visual.js';
 
 let currentVariationSeed = 0;
 
@@ -284,17 +286,17 @@ export function renderHome(container) {
         </div>
 
         <div class="grid grid-cols-1 grid-tablet-2 grid-desktop-3 gap-4">
-          ${recommended.map(w => `
+          ${recommended.map(w => {
+            const previewId = Array.isArray(w.exerciseIds) && w.exerciseIds.length ? w.exerciseIds[0] : null;
+            const previewExercise = previewId ? getExerciseById(previewId) : null;
+            return `
             <article class="workout-card" data-workout-id="${w.id}">
-              <div class="workout-card-visual">
+              <div class="workout-card-visual workout-card-visual-3d">
                 <span class="badge badge-primary workout-card-badge">${w.category}</span>
                 <span class="workout-card-duration-badge">${w.durationMin} MIN</span>
-                <div class="workout-visual-placeholder">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                    <polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/>
-                  </svg>
-                  <span class="text-caption">${w.target}</span>
-                </div>
+                ${previewExercise
+                  ? renderExerciseVisualThumbnail(previewExercise, { compact: false })
+                  : `<div class="workout-visual-placeholder"><span class="text-caption">${w.target}</span></div>`}
               </div>
               <div class="workout-card-content">
                 <h3 class="workout-card-title">${w.title}</h3>

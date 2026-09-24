@@ -6,7 +6,7 @@
  * multi-dimensional search & filtering, and rich modal inspection.
  */
 
-import { EXERCISES, getExercisePlaceholderSvg, getExerciseById } from '../data/exercises.js';
+import { EXERCISES, getExerciseById } from '../data/exercises.js';
 import {
   EQUIPMENT_LABELS,
   CATEGORY_LABELS,
@@ -15,6 +15,7 @@ import {
 } from '../data/taxonomy.js';
 import { getExercisePerformanceHistory } from '../analytics/performance-tracker.js';
 import { showExerciseDetailModal } from '../components/exercise-media.js';
+import { renderExerciseVisualThumbnail } from '../components/exercise-visual.js';
 import { resolveExerciseWithCoachMedia } from '../data/coach-system.js';
 
 export function renderExerciseLibrary(container) {
@@ -112,25 +113,10 @@ export function renderExerciseLibrary(container) {
         .map(m => MUSCLE_LABELS[m] || m)
         .join(', ');
 
-      const hasThumbnail = ex.media && ex.media.thumbnail;
-
       return `
         <div class="exercise-card card-interactive" data-exercise-id="${ex.id}" role="button" tabindex="0" aria-label="View details for ${ex.name}">
           <div class="exercise-thumb">
-            ${hasThumbnail ? `
-              <img
-                src="${ex.media.thumbnail}"
-                alt="${ex.name} demonstration thumbnail"
-                class="exercise-thumb-img"
-                loading="lazy"
-                onerror="this.style.display='none'; const fb = this.parentElement ? this.parentElement.querySelector('.exercise-thumb-svg') : null; if (fb) fb.style.display='flex';"
-              />
-              <div class="exercise-thumb-svg" style="display: none;">
-                ${getExercisePlaceholderSvg(ex.svgType || 'upper-push')}
-              </div>
-            ` : `
-              ${getExercisePlaceholderSvg(ex.svgType || 'upper-push')}
-            `}
+            ${renderExerciseVisualThumbnail(ex, { compact: true })}
           </div>
           <div class="exercise-info">
             <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
