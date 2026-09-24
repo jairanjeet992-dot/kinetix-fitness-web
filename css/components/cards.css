@@ -289,6 +289,10 @@
 .exercise-visual-figure .exercise-bio-svg { width:94%; height:94%; color:rgba(255,255,255,.88); filter:drop-shadow(0 5px 10px rgba(0,0,0,.42)); }
 .exercise-visual-ring { position:absolute; width:68px; aspect-ratio:1; border-radius:50%; border:1px solid rgba(255,84,46,.18); box-shadow:0 0 0 8px rgba(255,84,46,.025),inset 0 0 20px rgba(255,84,46,.05); }
 .exercise-visual-thumbnail .bio-muscle-pulse { filter:drop-shadow(0 0 5px rgba(255,84,46,.55)); }
-.exercise-card .exercise-visual-thumbnail { flex-shrink:0; }
+ .exercise-card .exercise-visual-thumbnail { flex-shrink:0; }
+
+/* Library rows get a readable 3D movement crop without increasing card height excessively. */
+.exercise-card .exercise-thumb { width:88px; height:72px; }
+@media (max-width:399px) { .exercise-card .exercise-thumb { width:72px; height:60px; } }
 @media (prefers-reduced-motion:no-preference) { .exercise-visual-thumbnail .bio-muscle-pulse { animation:kinetix-visual-pulse 2.4s ease-in-out infinite; } }
 @keyframes kinetix-visual-pulse { 0%,100%{opacity:.72} 50%{opacity:1} }
