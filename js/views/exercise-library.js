@@ -14,7 +14,7 @@ import {
   FOCUS_AREA_TO_MUSCLES
 } from '../data/taxonomy.js';
 import { getExercisePerformanceHistory } from '../analytics/performance-tracker.js';
-import { showExerciseDetailModal } from '../components/exercise-media.js';
+import { showExerciseDetailModal, escapeHtml } from '../components/exercise-media.js';
 import { renderExerciseVisualThumbnail } from '../components/exercise-visual.js';
 import { resolveExerciseWithCoachMedia } from '../data/coach-system.js';
 
@@ -104,23 +104,26 @@ export function renderExerciseLibrary(container) {
         .map(eq => EQUIPMENT_LABELS[eq] || eq)
         .filter(eq => eq !== 'No Equipment')
         .join(', ') || 'Bodyweight';
+      const safeName = escapeHtml(ex.name || 'Exercise');
+      const safeEquipment = escapeHtml(eqDisplay);
+      const safeDifficulty = escapeHtml(ex.difficulty || 'beginner');
 
-      const primaryDisplay = (ex.primaryMuscles || [])
+      const primaryDisplay = escapeHtml((ex.primaryMuscles || [])
         .map(m => MUSCLE_LABELS[m] || m)
-        .join(', ');
+        .join(', '));
 
-      const secDisplay = (ex.secondaryMuscles || [])
+      const secDisplay = escapeHtml((ex.secondaryMuscles || [])
         .map(m => MUSCLE_LABELS[m] || m)
-        .join(', ');
+        .join(', '));
 
       return `
-        <div class="exercise-card card-interactive" data-exercise-id="${ex.id}" role="button" tabindex="0" aria-label="View details for ${ex.name}">
+        <div class="exercise-card card-interactive" data-exercise-id="${escapeHtml(ex.id)}" role="button" tabindex="0" aria-label="View details for ${safeName}">
           <div class="exercise-thumb">
             ${renderExerciseVisualThumbnail(ex, { compact: true })}
           </div>
           <div class="exercise-info">
             <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-              <span class="exercise-name">${ex.name}</span>
+              <span class="exercise-name">${safeName}</span>
               ${ex.coach ? `
                 <span class="badge" style="background: rgba(255, 84, 46, 0.12); color: var(--color-primary); font-size: 10px; padding: 1px 6px;">
                   Coach Kai
@@ -128,7 +131,7 @@ export function renderExerciseLibrary(container) {
               ` : ''}
             </div>
             <div class="exercise-details">
-              <strong>${primaryDisplay}</strong> &bull; ${eqDisplay} &bull; ${ex.defaultReps}
+              <strong>${primaryDisplay}</strong> &bull; ${safeEquipment} &bull; ${escapeHtml(ex.defaultReps)}
             </div>
             ${secDisplay ? `
               <div class="text-caption text-muted" style="margin-top: 2px;">
@@ -137,8 +140,8 @@ export function renderExerciseLibrary(container) {
             ` : ''}
           </div>
           <div class="exercise-action">
-            <span class="badge ${ex.difficulty === 'beginner' || ex.difficulty === 'Beginner' ? 'badge-success' : ex.difficulty === 'intermediate' || ex.difficulty === 'Intermediate' ? 'badge-primary' : 'badge-dark'}">
-              ${ex.difficulty.charAt(0).toUpperCase() + ex.difficulty.slice(1)}
+            <span class="badge ${safeDifficulty === 'beginner' || ex.difficulty === 'Beginner' ? 'badge-success' : ex.difficulty === 'intermediate' || ex.difficulty === 'Intermediate' ? 'badge-primary' : 'badge-dark'}">
+              ${safeDifficulty.charAt(0).toUpperCase() + ex.difficulty.slice(1)}
             </span>
           </div>
         </div>
