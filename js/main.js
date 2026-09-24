@@ -12,7 +12,7 @@ import { getProfile } from './state/profile.js';
 function syncShellProfile() {
   const profile = getProfile() || {};
   const name = typeof profile.name === 'string' && profile.name.trim() ? profile.name.trim() : 'Athlete';
-  const initials = name.split(/\\s+/).map(part => part[0]).filter(Boolean).join('').slice(0, 2).toUpperCase() || 'A';
+  const initials = name.split(/\s+/).map(part => part[0]).filter(Boolean).join('').slice(0, 2).toUpperCase() || 'A';
 
   const nameEl = document.querySelector('#desktop-user-name');
   const avatarEl = document.querySelector('#desktop-user-avatar');
