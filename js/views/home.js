@@ -9,6 +9,8 @@ import { getProfile } from '../state/profile.js';
 import { generateWorkout } from '../engine/workout-generator.js';
 import { generateAdaptiveWorkout } from '../engine/adaptive-workout-generator.js';
 import { getActiveSession, clearActiveSession } from '../state/workout-session.js';
+import { getActivePlan, SESSION_TYPE } from '../state/training-plan.js';
+import { toDateString } from '../engine/plan-generator.js';
 
 let currentVariationSeed = 0;
 
@@ -30,6 +32,18 @@ export function renderHome(container) {
   } else {
     // Graceful fallback to static featured if engine cannot generate
     todayWorkout = getFeaturedWorkout();
+  }
+
+  // Connect to long-term training plan if available
+  const activePlan = getActivePlan();
+  const todayStr = toDateString(new Date());
+  let todayPlannedSession = null;
+  if (activePlan && activePlan.weeks && activePlan.weeks[0]) {
+    todayPlannedSession = (activePlan.weeks[0].sessions || []).find(s => s.scheduledDate === todayStr) || null;
+  }
+  if (todayWorkout && todayPlannedSession && todayPlannedSession.sessionType === SESSION_TYPE.TRAINING) {
+    todayWorkout.plannedSessionId = todayPlannedSession.plannedSessionId;
+    todayWorkout.planId = todayPlannedSession.planId;
   }
 
   // Personalized preview titles
@@ -116,6 +130,11 @@ export function renderHome(container) {
           <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
             <span class="badge badge-primary">TODAY'S SESSION</span>
             <span class="badge" style="background: rgba(255,255,255,0.08);">${planTitle}</span>
+            ${todayPlannedSession ? `
+              <a href="#plans" class="badge" style="background: rgba(255, 84, 46, 0.15); color: var(--color-primary); text-decoration: none;">
+                Plan: ${todayPlannedSession.sessionType === SESSION_TYPE.REST ? 'Rest Day' : todayPlannedSession.targetFocus}
+              </a>
+            ` : ''}
             ${todayWorkout.adaptation && todayWorkout.adaptation.applied ? `
               <span class="badge" style="background: rgba(46, 204, 113, 0.15); color: #2ecc71; border: 1px solid rgba(46, 204, 113, 0.4); font-weight: 600;">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 4px; display: inline-block; vertical-align: middle;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>

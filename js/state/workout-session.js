@@ -14,6 +14,7 @@
 import { getExerciseById } from '../data/exercises.js';
 import { calculateSessionTrainingLoad } from '../analytics/training-load.js';
 import { savePerformanceRecord, createPerformanceRecord, sanitizePerformanceRecord } from '../analytics/performance-tracker.js';
+import { reconcileCompletedSession } from './training-plan.js';
 
 export const STORAGE_KEY_SESSION = 'kinetix_active_workout_session';
 export const STORAGE_KEY_HISTORY = 'kinetix_workout_history';
@@ -140,6 +141,8 @@ export function initSession(workout) {
     sessionId,
     workoutId: workout.id,
     workoutTitle: workout.title || 'Workout Session',
+    plannedSessionId: (workout && workout.plannedSessionId) || null,
+    planId: (workout && workout.planId) || null,
     startedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     currentExerciseIndex: 0,
@@ -761,6 +764,13 @@ export function sanitizeHistoryRecord(raw) {
     trainingLoad: 0
   };
 
+  if (typeof raw.plannedSessionId === 'string' && raw.plannedSessionId.trim().length > 0) {
+    sanitized.plannedSessionId = raw.plannedSessionId.trim();
+  }
+  if (typeof raw.planId === 'string' && raw.planId.trim().length > 0) {
+    sanitized.planId = raw.planId.trim();
+  }
+
   // Phase 5 Performance Tracking
   if (Array.isArray(raw.performanceLogs)) {
     sanitized.performanceLogs = raw.performanceLogs
@@ -814,6 +824,8 @@ export function completeWorkout(session, workout) {
   const rawRecord = {
     sessionId: session.sessionId,
     workoutId: session.workoutId,
+    plannedSessionId: session.plannedSessionId || (workout && workout.plannedSessionId) || null,
+    planId: session.planId || (workout && workout.planId) || null,
     title: session.workoutTitle || (workout && workout.title) || 'Workout Session',
     workoutTitle: session.workoutTitle || (workout && workout.title) || 'Workout Session',
     startedAt: session.startedAt,
@@ -840,6 +852,12 @@ export function completeWorkout(session, workout) {
 
   const historyRecord = sanitizeHistoryRecord(rawRecord);
   saveWorkoutHistoryRecord(historyRecord);
+  try {
+    reconcileCompletedSession(historyRecord);
+  } catch (err) {
+    // Non-fatal training plan reconciliation
+    console.warn('Plan reconciliation note:', err);
+  }
   saveActiveSession(session);
   return session;
 }

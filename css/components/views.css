@@ -403,9 +403,12 @@
 }
 
 .calendar-status-dot.status-completed { background-color: var(--color-success); }
-.calendar-status-dot.status-today { background-color: var(--color-primary); }
-.calendar-status-dot.status-upcoming { background-color: var(--color-border-strong); }
-.calendar-status-dot.status-rest { background-color: transparent; border: 1.5px solid var(--color-text-muted); }
+.calendar-status-dot.status-today, .calendar-status-dot.status-ready { background-color: var(--color-primary); }
+.calendar-status-dot.status-upcoming, .calendar-status-dot.status-planned { background-color: var(--color-border-strong); }
+.calendar-status-dot.status-missed { background-color: var(--color-error, #e74c3c); }
+.calendar-status-dot.status-skipped { background-color: var(--color-warning, #f39c12); }
+.calendar-status-dot.status-rescheduled { background-color: #3498db; }
+.calendar-status-dot.status-rest, .calendar-status-dot.status-recovery { background-color: transparent; border: 1.5px solid var(--color-text-muted); }
 
 /* ==========================================================================
    Progress Screen: CSS/SVG Bar Chart
