@@ -146,30 +146,45 @@ export const WORKOUTS = [
 
 // Cache for dynamically generated workouts
 const generatedWorkoutsMap = new Map();
-const STORAGE_KEY = 'kinetix_generated_workouts';
+const STORAGE_KEY_WORKOUTS = 'kinetix_generated_workouts';
+const STORAGE_KEY_ACTIVE_ID = 'kinetix_active_workout_id';
+let activeWorkoutId = null;
 
 function loadPersistedWorkouts() {
   try {
     if (typeof localStorage === 'undefined') return;
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
+    const rawWorkouts = localStorage.getItem(STORAGE_KEY_WORKOUTS);
+    if (rawWorkouts) {
+      const parsed = JSON.parse(rawWorkouts);
       if (Array.isArray(parsed)) {
-        parsed.forEach(w => generatedWorkoutsMap.set(w.id, w));
+        parsed.forEach(w => {
+          if (w && typeof w === 'object' && typeof w.id === 'string' && w.id.trim() && w.id !== 'latest-generated') {
+            generatedWorkoutsMap.set(w.id, w);
+          }
+        });
       }
     }
+    const rawActiveId = localStorage.getItem(STORAGE_KEY_ACTIVE_ID);
+    if (rawActiveId && typeof rawActiveId === 'string' && rawActiveId.trim()) {
+      activeWorkoutId = rawActiveId.trim();
+    }
   } catch (err) {
-    console.warn("Failed to load persisted generated workouts.", err);
+    console.warn("Failed to load persisted generated workouts (storage or corrupted JSON):", err);
   }
 }
 
 function persistWorkouts() {
   try {
     if (typeof localStorage === 'undefined') return;
-    const workoutsArray = Array.from(generatedWorkoutsMap.values());
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(workoutsArray));
+    const workoutsArray = Array.from(generatedWorkoutsMap.values()).filter(
+      w => w && typeof w === 'object' && typeof w.id === 'string' && w.id.trim() && w.id !== 'latest-generated'
+    );
+    localStorage.setItem(STORAGE_KEY_WORKOUTS, JSON.stringify(workoutsArray));
+    if (activeWorkoutId) {
+      localStorage.setItem(STORAGE_KEY_ACTIVE_ID, activeWorkoutId);
+    }
   } catch (err) {
-    console.warn("Failed to save generated workouts to storage.", err);
+    console.warn("Failed to save generated workouts to storage (quota/security):", err);
   }
 }
 
@@ -180,33 +195,79 @@ if (typeof localStorage !== 'undefined') {
 
 /**
  * Registers a dynamically generated workout so it can be retrieved by ID across views.
+ * Only stores the actual generated workout; the latest active ID is tracked separately.
  */
 export function registerGeneratedWorkout(workout) {
-  if (workout && workout.id) {
+  if (workout && typeof workout === 'object' && typeof workout.id === 'string' && workout.id.trim()) {
     generatedWorkoutsMap.set(workout.id, workout);
-    // Also save as latest active generated session
-    generatedWorkoutsMap.set('latest-generated', workout);
+    activeWorkoutId = workout.id;
     persistWorkouts();
   }
 }
 
 export function getWorkoutById(id) {
-  if (!id) return null;
+  if (!id || typeof id !== 'string') return null;
+
   // 1. Check static library
   const staticFound = WORKOUTS.find(w => w.id === id);
   if (staticFound) return staticFound;
 
-  // 2. Check generated registry
+  // 2. Check generated registry in memory
   if (generatedWorkoutsMap.has(id)) {
     return generatedWorkoutsMap.get(id);
   }
 
-  // 3. Fallback to latest generated if id starts with 'gen-'
-  if (id.startsWith('gen-') && generatedWorkoutsMap.has('latest-generated')) {
-    return generatedWorkoutsMap.get('latest-generated');
+  // 3. Fallback: if 'latest-generated' or unresolved 'gen-*', resolve active workout
+  if (id === 'latest-generated' || id.startsWith('gen-')) {
+    if (activeWorkoutId && generatedWorkoutsMap.has(activeWorkoutId)) {
+      return generatedWorkoutsMap.get(activeWorkoutId);
+    }
+  }
+
+  // 4. Fallback: check storage directly in case memory was flushed
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(STORAGE_KEY_WORKOUTS);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const directMatch = parsed.find(w => w && w.id === id);
+          if (directMatch) {
+            generatedWorkoutsMap.set(directMatch.id, directMatch);
+            return directMatch;
+          }
+          if ((id === 'latest-generated' || id.startsWith('gen-')) && activeWorkoutId) {
+            const activeMatch = parsed.find(w => w && w.id === activeWorkoutId);
+            if (activeMatch) {
+              generatedWorkoutsMap.set(activeMatch.id, activeMatch);
+              return activeMatch;
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("Failed reading direct localStorage fallback:", e);
   }
 
   return null;
+}
+
+/**
+ * Clean testing helper to simulate browser reload / reinitialization.
+ * Flushes in-memory registry and reloads from localStorage.
+ */
+export function _resetWorkoutPersistenceForTesting(clearStorage = false) {
+  generatedWorkoutsMap.clear();
+  activeWorkoutId = null;
+  if (clearStorage && typeof localStorage !== 'undefined') {
+    try {
+      localStorage.removeItem(STORAGE_KEY_WORKOUTS);
+      localStorage.removeItem(STORAGE_KEY_ACTIVE_ID);
+    } catch (_) {}
+  } else {
+    loadPersistedWorkouts();
+  }
 }
 
 export function getRecommendedWorkouts() {

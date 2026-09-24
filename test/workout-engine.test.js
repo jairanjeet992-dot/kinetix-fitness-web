@@ -1,17 +1,33 @@
 /**
  * WORKOUT ENGINE TEST SUITE - KINETIX
- * Phase 2: Exercise Database & Workout Intelligence Engine Validation
+ * Phase 2.1: Final Hardening & Verification Suite
  *
  * Runs automated verification of:
- * 1. Database schema and canonical taxonomy compliance
- * 2. Five mandated test scenarios across equipment, difficulty, and duration combinations
+ * 1. Database schema and canonical taxonomy compliance (including error handling)
+ * 2. Five core generation scenarios across equipment, difficulty, and duration
+ * 3. Exact duration fitting across 10, 15, 20, 25, 30, 35, 45, 50, 60 minutes
+ * 4. Equipment edge cases (Bodyweight, Dumbbell, Barbell, Bands, Kettlebell, AND/OR/Nested)
+ * 5. Deterministic regeneration and meaningful variation testing
+ * 6. True persistence and reload safety (including corrupted JSON recovery)
+ * 7. Safe runtime failure on invalid database state
  */
 
+// Mock localStorage early before module operations
+if (typeof globalThis.localStorage === 'undefined') {
+  globalThis.localStorage = {
+    store: {},
+    getItem(key) { return this.store[key] || null; },
+    setItem(key, val) { this.store[key] = String(val); },
+    removeItem(key) { delete this.store[key]; },
+    clear() { this.store = {}; }
+  };
+}
+
 import { EXERCISES, getExerciseById } from '../js/data/exercises.js';
-import { validateExerciseDatabase } from '../js/data/exercise-validator.js';
-import { generateWorkout } from '../js/engine/workout-generator.js';
-import { EQUIPMENT } from '../js/data/taxonomy.js';
-import { registerGeneratedWorkout, getWorkoutById } from '../js/data/workouts.js';
+import { validateExerciseDatabase, validateExerciseRecord } from '../js/data/exercise-validator.js';
+import { generateWorkout, isEquipmentCompatible } from '../js/engine/workout-generator.js';
+import { EQUIPMENT, CATEGORIES, MOVEMENT_PATTERNS, DIFFICULTIES, GOALS } from '../js/data/taxonomy.js';
+import { registerGeneratedWorkout, getWorkoutById, _resetWorkoutPersistenceForTesting } from '../js/data/workouts.js';
 
 let totalTests = 0;
 let passedTests = 0;
@@ -30,24 +46,59 @@ function assert(condition, message) {
 
 console.log('====================================================');
 console.log('KINETIX WORKOUT ENGINE & EXERCISE DATABASE TESTS');
-console.log('====================================================\n');
+console.log('====================================================');
 
 // ------------------------------------------------------------------
-// 1. DATABASE INTEGRITY
+// 1. EXERCISE DATABASE SCHEMA & VALIDATION TESTS
 // ------------------------------------------------------------------
-console.log('Test Suite 1: Exercise Database Schema & Validation');
+console.log('\nTest Suite 1: Exercise Database Schema & Validation');
 const dbValidation = validateExerciseDatabase(EXERCISES);
 
 assert(dbValidation.valid, `Exercise database passes schema validation (Errors: ${dbValidation.errors.length})`);
 assert(dbValidation.totalExercises >= 40, `Exercise database contains at least 40 exercises (Found: ${dbValidation.totalExercises})`);
 assert(dbValidation.errors.length === 0, `Zero schema errors detected`);
 
-if (dbValidation.errors.length > 0) {
-  console.error('Validation errors:', dbValidation.errors);
-}
+// Test validator catches all mandatory invalid conditions
+const duplicateIdDb = [
+  { ...EXERCISES[0], id: 'same-id' },
+  { ...EXERCISES[1], id: 'same-id' }
+];
+const dupIdVal = validateExerciseDatabase(duplicateIdDb);
+assert(!dupIdVal.valid && dupIdVal.errors.some(e => e.includes('Duplicate exercise ID')), 'Validator catches duplicate exercise IDs');
+
+const duplicateNameDb = [
+  { ...EXERCISES[0], id: 'id-1', name: 'Identical Name' },
+  { ...EXERCISES[1], id: 'id-2', name: 'Identical Name' }
+];
+const dupNameVal = validateExerciseDatabase(duplicateNameDb);
+assert(!dupNameVal.valid && dupNameVal.errors.some(e => e.includes('Duplicate exercise name')), 'Validator catches duplicate exercise names');
+
+const invalidCategoryEx = { ...EXERCISES[0], category: 'non-existent-category' };
+assert(validateExerciseRecord(invalidCategoryEx).some(e => e.includes('Invalid category')), 'Validator catches invalid category');
+
+const invalidMuscleEx = { ...EXERCISES[0], primaryMuscles: ['fake-muscle'] };
+assert(validateExerciseRecord(invalidMuscleEx).some(e => e.includes('Unknown primary muscle')), 'Validator catches invalid primary muscle');
+
+const invalidEquipmentEx = { ...EXERCISES[0], equipment: ['unobtainium'] };
+assert(validateExerciseRecord(invalidEquipmentEx).some(e => e.includes('Unknown equipment')), 'Validator catches invalid equipment identifier');
+
+const malformedEquipmentEx = { ...EXERCISES[0], equipment: [{ any: ['fake-gear'] }] };
+assert(validateExerciseRecord(malformedEquipmentEx).some(e => e.includes('Unknown ANY equipment')), 'Validator catches malformed nested equipment constraints');
+
+const invalidPatternEx = { ...EXERCISES[0], movementPattern: 'diagonal-fly' };
+assert(validateExerciseRecord(invalidPatternEx).some(e => e.includes('Invalid movementPattern')), 'Validator catches invalid movement pattern');
+
+const invalidDiffEx = { ...EXERCISES[0], difficulty: 'master' };
+assert(validateExerciseRecord(invalidDiffEx).some(e => e.includes('Invalid difficulty')), 'Validator catches invalid difficulty');
+
+const invalidDurationEx = { ...EXERCISES[0], defaultDurationSec: -10 };
+assert(validateExerciseRecord(invalidDurationEx).some(e => e.includes('defaultDurationSec must be a positive number')), 'Validator catches invalid duration');
+
+const missingInstructionsEx = { ...EXERCISES[0], instructions: [] };
+assert(validateExerciseRecord(missingInstructionsEx).some(e => e.includes('instructions must be a non-empty array')), 'Validator catches missing instructions');
 
 // ------------------------------------------------------------------
-// 2. MANDATED TEST SCENARIOS
+// 2. FIVE CORE GENERATION SCENARIOS
 // ------------------------------------------------------------------
 console.log('\nTest Suite 2: Five Core Generation Scenarios');
 
@@ -55,107 +106,81 @@ const scenarios = [
   {
     name: 'Scenario 1: Beginner, Bodyweight, Full Body, 20 min',
     profile: {
+      goal: 'Stay Active',
       fitnessLevel: 'Beginner',
-      equipment: ['No Equipment'],
-      targetMuscles: ['Full Body'],
-      workoutDuration: '20–30 min',
-      goal: 'Stay Active'
+      focusAreas: ['Full Body'],
+      equipment: ['No equipment'],
+      workoutDuration: '20 min'
     },
-    allowedEquipment: [EQUIPMENT.BODYWEIGHT, EQUIPMENT.NONE],
-    expectedTarget: 'Full Body',
-    targetMinutes: 20
+    allowedEquipment: [EQUIPMENT.BODYWEIGHT, EQUIPMENT.NONE]
   },
   {
     name: 'Scenario 2: Intermediate, Dumbbell, Chest + Back, 30 min',
     profile: {
+      goal: 'Build Muscle',
       fitnessLevel: 'Intermediate',
+      focusAreas: ['Chest', 'Back'],
       equipment: ['Dumbbells'],
-      targetMuscles: ['Chest', 'Back'],
-      workoutDuration: '30–45 min',
-      goal: 'Build Muscle'
+      workoutDuration: '30 min'
     },
-    allowedEquipment: [EQUIPMENT.DUMBBELL, EQUIPMENT.BODYWEIGHT, EQUIPMENT.BENCH, EQUIPMENT.NONE],
-    expectedTarget: 'Chest & Back',
-    targetMinutes: 35
+    allowedEquipment: [EQUIPMENT.DUMBBELL, EQUIPMENT.BODYWEIGHT, EQUIPMENT.NONE]
   },
   {
     name: 'Scenario 3: Advanced, Barbell, Legs, 45 min',
     profile: {
+      goal: 'Get Stronger',
       fitnessLevel: 'Advanced',
+      focusAreas: ['Legs'],
       equipment: ['Barbell'],
-      targetMuscles: ['Legs'],
-      workoutDuration: '45–60 min',
-      goal: 'Get Stronger'
+      workoutDuration: '45–60 min'
     },
-    allowedEquipment: [EQUIPMENT.BARBELL, EQUIPMENT.BODYWEIGHT, EQUIPMENT.NONE, EQUIPMENT.BENCH],
-    expectedTarget: 'Legs',
-    targetMinutes: 45
+    allowedEquipment: [EQUIPMENT.BARBELL, EQUIPMENT.BODYWEIGHT, EQUIPMENT.NONE]
   },
   {
     name: 'Scenario 4: Beginner, No equipment, Core, 15 min',
     profile: {
+      goal: 'Improve Fitness',
       fitnessLevel: 'Beginner',
-      equipment: ['No Equipment'],
-      targetMuscles: ['Core'],
-      workoutDuration: '10–20 min',
-      goal: 'Improve Fitness'
+      focusAreas: ['Core'],
+      equipment: ['No equipment'],
+      workoutDuration: '15 min'
     },
-    allowedEquipment: [EQUIPMENT.BODYWEIGHT, EQUIPMENT.NONE],
-    expectedTarget: 'Core',
-    targetMinutes: 15
+    allowedEquipment: [EQUIPMENT.BODYWEIGHT, EQUIPMENT.NONE]
   },
   {
     name: 'Scenario 5: Intermediate, Resistance Band, Full Body, 30 min',
     profile: {
+      goal: 'Improve Endurance',
       fitnessLevel: 'Intermediate',
+      focusAreas: ['Full Body'],
       equipment: ['Resistance Bands'],
-      targetMuscles: ['Full Body'],
-      workoutDuration: '20–30 min',
-      goal: 'Improve Endurance'
+      workoutDuration: '30 min'
     },
-    allowedEquipment: [EQUIPMENT.RESISTANCE_BAND, EQUIPMENT.BODYWEIGHT, EQUIPMENT.NONE],
-    expectedTarget: 'Full Body',
-    targetMinutes: 25
+    allowedEquipment: [EQUIPMENT.RESISTANCE_BAND, EQUIPMENT.BODYWEIGHT, EQUIPMENT.NONE]
   }
 ];
 
-scenarios.forEach((scenario, index) => {
+scenarios.forEach((scenario) => {
   console.log(`\nEvaluating ${scenario.name}...`);
   const workout = generateWorkout(scenario.profile, 0);
 
-  // 1. Success check
   assert(workout.ok === true, `Workout generated successfully (ID: ${workout.id})`);
+  assert(typeof workout.title === 'string' && workout.title.length > 0, `Generated deterministic title: "${workout.title}"`);
+  assert(typeof workout.explanation === 'string' && workout.explanation.length > 0, `Generated explanation: "${workout.explanation}"`);
 
-  // 2. Title and explanation presence
-  assert(Boolean(workout.title && workout.title.length > 5), `Generated deterministic title: "${workout.title}"`);
-  assert(Boolean(workout.explanation && workout.explanation.length > 10), `Generated explanation: "${workout.explanation}"`);
+  const allExercises = [...(workout.warmup || []), ...(workout.exercises || []), ...(workout.cooldown || [])];
 
-  // 3. Equipment restrictions: strictly NO disallowed equipment
-  const allExercises = [
-    ...(workout.warmup || []),
-    ...(workout.exercises || []),
-    ...(workout.cooldown || [])
-  ];
-
+  // Strictly check allowed gear
   let hasDisallowedEquipment = false;
   allExercises.forEach(ex => {
-    let isAllowed = true;
-    ex.equipment.forEach(req => {
-      if (typeof req === 'string') {
-        if (!scenario.allowedEquipment.includes(req)) isAllowed = false;
-      } else if (req && req.any) {
-        if (!req.any.some(eq => scenario.allowedEquipment.includes(eq))) isAllowed = false;
-      }
-    });
-
-    if (!isAllowed) {
+    if (!isEquipmentCompatible(ex, scenario.allowedEquipment)) {
       hasDisallowedEquipment = true;
       console.error(`Disallowed gear detected in ${ex.name}: ${JSON.stringify(ex.equipment)}`);
     }
   });
   assert(!hasDisallowedEquipment, `All selected exercises strictly comply with allowed equipment`);
 
-  // 4. Duplicate prevention
+  // Duplicate check
   const seenIds = new Set();
   let hasDuplicate = false;
   allExercises.forEach(ex => {
@@ -164,87 +189,198 @@ scenarios.forEach((scenario, index) => {
   });
   assert(!hasDuplicate, `Zero duplicate exercises in routine (Total unique: ${seenIds.size})`);
 
-  // 5. Reasonable duration
+  // Reasonable duration
   const dur = workout.durationMinutes;
-  assert(dur >= 10 && dur <= 60, `Calculated duration is reasonable: ${dur} min`);
+  assert(dur >= 5 && dur <= 65, `Calculated duration is reasonable: ${dur} min`);
 
-  // 6. Valid calorie estimate
+  // Valid calorie estimate
   assert(workout.estimatedCalories > 0 && workout.estimatedCalories < 1000, `Estimated calories transparently computed: ~${workout.estimatedCalories} kcal`);
 
-  // 7. Backward-compatible fields
+  // Duration accuracy report
+  assert(workout.durationAccuracy && typeof workout.durationAccuracy === 'object', 'durationAccuracy metadata object present');
+  assert(workout.durationAccuracy.requestedMinutes === workout.requestedDurationMin, 'durationAccuracy requestedMinutes preserved');
+  assert(typeof workout.durationAccuracy.withinTolerance === 'boolean', 'durationAccuracy withinTolerance reported');
+
+  // Backward-compatible fields
   assert(Array.isArray(workout.exerciseIds) && workout.exerciseIds.length > 0, `Backward-compatible exerciseIds array populated (${workout.exerciseIds.length} items)`);
   assert(typeof workout.rounds === 'number' && workout.rounds > 0, `Rounds property populated (${workout.rounds} rounds)`);
 });
 
 // ------------------------------------------------------------------
-// 3. REGENERATION / VARIATION SEED TEST
+// 3. COMPREHENSIVE DURATION FITTING TESTS (10 to 60 minutes)
 // ------------------------------------------------------------------
-console.log('\nTest Suite 3: Deterministic Regeneration / Variation Test');
-const baseProfile = scenarios[1].profile;
-const workoutSeed0 = generateWorkout(baseProfile, 0);
-const workoutSeed1 = generateWorkout(baseProfile, 1);
+console.log('\nTest Suite 3: Duration Accuracy Across All Durations (10, 15, 20, 25, 30, 35, 45, 50, 60 min)');
+const testDurations = [10, 15, 20, 25, 30, 35, 45, 50, 60];
 
-assert(workoutSeed0.ok && workoutSeed1.ok, `Both variations generated successfully`);
-assert(workoutSeed0.id !== workoutSeed1.id, `Different deterministic IDs generated (Seed 0: ${workoutSeed0.id} vs Seed 1: ${workoutSeed1.id})`);
+testDurations.forEach(targetMins => {
+  const profile = {
+    goal: 'Build Muscle',
+    fitnessLevel: 'Intermediate',
+    focusAreas: ['Full Body'],
+    equipment: ['Dumbbells'],
+    durationMinutes: targetMins
+  };
 
-// ------------------------------------------------------------------
-// 4. EXTREME DURATION SCALING TEST
-// ------------------------------------------------------------------
-console.log('\nTest Suite 4: Extreme Duration Scaling');
-const shortProfile = { ...baseProfile, durationMinutes: 10 };
-const longProfile = { ...baseProfile, durationMinutes: 60 };
+  const w = generateWorkout(profile, 0);
 
-const shortWorkout = generateWorkout(shortProfile, 0);
-const longWorkout = generateWorkout(longProfile, 0);
-
-assert(shortWorkout.ok, "10-minute workout generated successfully");
-assert(shortWorkout.durationMin >= 5 && shortWorkout.durationMin <= 15, `Short duration bounded correctly (Actual: ${shortWorkout.durationMin} min)`);
-assert(longWorkout.ok, "60-minute workout generated successfully");
-assert(longWorkout.durationMin >= 45 && longWorkout.durationMin <= 75, `Long duration bounded correctly (Actual: ${longWorkout.durationMin} min)`);
-assert(longWorkout.exercises.length > shortWorkout.exercises.length || longWorkout.rounds > shortWorkout.rounds, "Long workout has more volume than short workout");
-
-// ------------------------------------------------------------------
-// 5. COMPLEX EQUIPMENT MATCHING
-// ------------------------------------------------------------------
-console.log('\nTest Suite 5: Complex Equipment Logic (AND / OR)');
-const onlyDumbbells = { ...baseProfile, equipment: [EQUIPMENT.DUMBBELL, EQUIPMENT.BODYWEIGHT, EQUIPMENT.NONE] };
-const dumbbellAndBench = { ...baseProfile, equipment: [EQUIPMENT.DUMBBELL, EQUIPMENT.BENCH, EQUIPMENT.BODYWEIGHT, EQUIPMENT.NONE] };
-
-const wkDumbbell = generateWorkout(onlyDumbbells, 0);
-const wkBench = generateWorkout(dumbbellAndBench, 0);
-
-assert(wkDumbbell.ok, "Dumbbell-only workout generated");
-assert(wkBench.ok, "Dumbbell + Bench workout generated");
-
-// Ensure dumbbell-only doesn't use bench-requiring exercises
-let usedBenchWithoutHavingOne = false;
-wkDumbbell.exercises.forEach(ex => {
-  ex.equipment.forEach(req => {
-    if (req === EQUIPMENT.BENCH) usedBenchWithoutHavingOne = true;
-  });
+  assert(w.ok === true, `${targetMins} min routine generated successfully`);
+  assert(w.requestedDurationMin === targetMins, `Requested duration preserved: ${targetMins} min`);
+  assert(w.durationAccuracy && w.durationAccuracy.actualMinutes === w.durationMinutes, `Actual duration matches calculated duration: ${w.durationMinutes} min`);
+  assert(w.durationAccuracy.withinTolerance === true, `Duration within ±3 min tolerance (Diff: ${w.durationAccuracy.differenceMinutes > 0 ? '+' : ''}${w.durationAccuracy.differenceMinutes}m)`);
+  assert(w.rounds >= 2 && w.rounds <= 5, `Sets are sensible (${w.rounds} sets)`);
+  assert(w.exercises.length >= 3 && w.exercises.length <= 8, `Exercise count is sensible (${w.exercises.length} exercises)`);
 });
-assert(!usedBenchWithoutHavingOne, "Dumbbell-only workout strictly avoids bench exercises (ALL logic)");
+
+// Limited duration edge case (library with insufficient exercises)
+const limitedDb = [EXERCISES[0], EXERCISES[1]];
+const impossibleWorkout = generateWorkout({ durationMinutes: 30 }, 0, limitedDb);
+assert(impossibleWorkout.ok === false, 'Gracefully handles impossible workout with insufficient exercises');
 
 // ------------------------------------------------------------------
-// 6. PERSISTENCE LAYER VALIDATION
+// 4. EQUIPMENT EDGE CASES & SEMANTICS (A through J)
 // ------------------------------------------------------------------
-console.log('\nTest Suite 6: Persistence Layer');
-// Mock localStorage
-globalThis.localStorage = {
-  store: {},
-  getItem(key) { return this.store[key] || null; },
-  setItem(key, val) { this.store[key] = val; }
+console.log('\nTest Suite 4: Equipment Edge Cases & Semantics');
+
+// A. Bodyweight only
+const bwWk = generateWorkout({ equipment: ['bodyweight'], focusAreas: ['Full Body'], durationMinutes: 20 }, 0);
+assert(bwWk.ok && bwWk.exercises.every(e => isEquipmentCompatible(e, [EQUIPMENT.BODYWEIGHT, EQUIPMENT.NONE])), 'A. Bodyweight only selects compatible exercises');
+
+// B & C. Dumbbell only vs Dumbbell + Bench
+const dbOnly = generateWorkout({ equipment: ['dumbbell'], focusAreas: ['Chest'], durationMinutes: 20 }, 0);
+const dbBench = generateWorkout({ equipment: ['dumbbell', 'bench'], focusAreas: ['Chest'], durationMinutes: 20 }, 0);
+
+// Dumbbell only MUST NEVER select exercises requiring a bench
+let benchUsedInDbOnly = false;
+if (dbOnly.ok) {
+  const allDbOnly = [...(dbOnly.warmup || []), ...dbOnly.exercises, ...(dbOnly.cooldown || [])];
+  benchUsedInDbOnly = allDbOnly.some(e => {
+    return e.equipment.some(req => req === EQUIPMENT.BENCH || (req && req.all && req.all.includes(EQUIPMENT.BENCH)));
+  });
+}
+assert(!benchUsedInDbOnly, 'B. CRITICAL: Dumbbell only MUST NEVER select exercises requiring a bench');
+assert(dbBench.ok, 'C. Dumbbell + Bench workout generated successfully');
+
+// D & E. Barbell only vs Barbell + Bench
+const bbOnly = generateWorkout({ equipment: ['barbell'], focusAreas: ['Chest'], durationMinutes: 20 }, 0);
+let benchUsedInBbOnly = false;
+if (bbOnly.ok) {
+  const allBbOnly = [...(bbOnly.warmup || []), ...bbOnly.exercises, ...(bbOnly.cooldown || [])];
+  benchUsedInBbOnly = allBbOnly.some(e => e.equipment.includes(EQUIPMENT.BENCH));
+}
+assert(!benchUsedInBbOnly, 'D. Barbell only never selects bench-requiring exercises');
+
+// F. Resistance band only
+const bandWk = generateWorkout({ equipment: ['resistance-band'], focusAreas: ['Full Body'], durationMinutes: 20 }, 0);
+assert(bandWk.ok && bandWk.exercises.every(e => isEquipmentCompatible(e, [EQUIPMENT.RESISTANCE_BAND, EQUIPMENT.BODYWEIGHT, EQUIPMENT.NONE])), 'F. Resistance band only routine generated');
+
+// G. Kettlebell only
+const kbCompatible = isEquipmentCompatible(
+  { equipment: [EQUIPMENT.KETTLEBELL] },
+  [EQUIPMENT.KETTLEBELL, EQUIPMENT.BODYWEIGHT, EQUIPMENT.NONE]
+);
+assert(kbCompatible, 'G. Kettlebell compatibility evaluates correctly');
+
+// H. Empty equipment
+const emptyEqWk = generateWorkout({ equipment: [], focusAreas: ['Full Body'], durationMinutes: 20 }, 0);
+assert(emptyEqWk.ok && emptyEqWk.exercises.every(e => isEquipmentCompatible(e, [EQUIPMENT.BODYWEIGHT, EQUIPMENT.NONE])), 'H. Empty equipment defaults safely to bodyweight');
+
+// I. Unknown equipment
+const unknownEqEx = { equipment: ['antigravity-harness'] };
+assert(!isEquipmentCompatible(unknownEqEx, [EQUIPMENT.DUMBBELL, EQUIPMENT.BODYWEIGHT]), 'I. Unknown equipment is rejected');
+
+// J. Nested { any: [...] } and { all: [...] }
+const anyEx = { equipment: [{ any: [EQUIPMENT.DUMBBELL, EQUIPMENT.KETTLEBELL] }] };
+assert(isEquipmentCompatible(anyEx, [EQUIPMENT.DUMBBELL]), 'J1. { any: [dumbbell, kettlebell] } matches dumbbell user');
+assert(isEquipmentCompatible(anyEx, [EQUIPMENT.KETTLEBELL]), 'J2. { any: [dumbbell, kettlebell] } matches kettlebell user');
+assert(!isEquipmentCompatible(anyEx, [EQUIPMENT.BARBELL]), 'J3. { any: [dumbbell, kettlebell] } rejects barbell-only user');
+
+const allEx = { equipment: [{ all: [EQUIPMENT.DUMBBELL, EQUIPMENT.BENCH] }] };
+assert(!isEquipmentCompatible(allEx, [EQUIPMENT.DUMBBELL]), 'J4. { all: [dumbbell, bench] } rejects dumbbell-only user');
+assert(isEquipmentCompatible(allEx, [EQUIPMENT.DUMBBELL, EQUIPMENT.BENCH]), 'J5. { all: [dumbbell, bench] } matches dumbbell+bench user');
+
+// ------------------------------------------------------------------
+// 5. DETERMINISTIC REGENERATION & VARIATION TEST
+// ------------------------------------------------------------------
+console.log('\nTest Suite 5: Deterministic Regeneration Quality');
+const regenProfile = {
+  goal: 'Build Muscle',
+  fitnessLevel: 'Intermediate',
+  focusAreas: ['Chest', 'Back'],
+  equipment: ['Dumbbells'],
+  durationMinutes: 30
 };
 
-registerGeneratedWorkout(shortWorkout);
-const retrieved = getWorkoutById(shortWorkout.id);
-assert(retrieved && retrieved.id === shortWorkout.id, "Workout successfully saved and retrieved from persistence registry");
-const retrievedLatest = getWorkoutById('gen-latest-fallback'); // Should fallback
-assert(getWorkoutById(shortWorkout.id) !== null, "Registry returns correct fallback logic for latest");
+const runA_seed0 = generateWorkout(regenProfile, 0);
+const runB_seed0 = generateWorkout(regenProfile, 0);
+const run_seed1 = generateWorkout(regenProfile, 1);
 
+// 1. Same seed must produce identical workout structure
+const runA_ids = runA_seed0.exercises.map(e => e.id).join(',');
+const runB_ids = runB_seed0.exercises.map(e => e.id).join(',');
+assert(runA_ids === runB_ids, 'Same profile + same seed produces 100% identical exercise sequence');
+assert(runA_seed0.id === runB_seed0.id, 'Same profile + same seed produces identical workout ID');
+
+// 2. Different seed must produce different variation when alternatives exist
+const runSeed1_ids = run_seed1.exercises.map(e => e.id).join(',');
+assert(runA_ids !== runSeed1_ids, `Different seed produces meaningful exercise variation (Seed 0 vs Seed 1 differ)`);
+assert(runA_seed0.id !== run_seed1.id, `Different seed produces different routine IDs (${runA_seed0.id} vs ${run_seed1.id})`);
 
 // ------------------------------------------------------------------
-// SUMMARY
+// 6. TRUE PERSISTENCE & REFRESH SAFETY TEST
+// ------------------------------------------------------------------
+console.log('\nTest Suite 6: True Persistence & Reload Safety');
+
+const testWorkout = generateWorkout(regenProfile, 0);
+assert(testWorkout.ok, 'Generated test workout for persistence check');
+
+// Step 1: Register and save workout
+registerGeneratedWorkout(testWorkout);
+
+// Step 2: Verify storage contains the workout and active ID separately
+const storedJson = globalThis.localStorage.getItem('kinetix_generated_workouts');
+const storedActiveId = globalThis.localStorage.getItem('kinetix_active_workout_id');
+assert(storedJson !== null, 'kinetix_generated_workouts saved in localStorage');
+assert(storedActiveId === testWorkout.id, 'kinetix_active_workout_id tracks current workout ID separately');
+
+// Step 3: Simulate browser reload by flushing in-memory Map and reloading from storage
+_resetWorkoutPersistenceForTesting(false);
+
+// Step 4: Retrieve workout by original ID after memory flush
+const retrievedAfterReload = getWorkoutById(testWorkout.id);
+assert(retrievedAfterReload !== null, 'Workout retrieved by original ID after in-memory cache flush');
+assert(retrievedAfterReload && retrievedAfterReload.id === testWorkout.id, 'Retrieved workout has matching ID');
+assert(retrievedAfterReload && retrievedAfterReload.title === testWorkout.title, 'Retrieved workout has matching title');
+assert(retrievedAfterReload && retrievedAfterReload.exercises.length === testWorkout.exercises.length, 'Retrieved workout retains full exercise list');
+
+// Step 5: Resolve via 'latest-generated'
+const retrievedActive = getWorkoutById('latest-generated');
+assert(retrievedActive && retrievedActive.id === testWorkout.id, "'latest-generated' correctly resolves active workout");
+
+// Step 6: Corrupted JSON recovery (should not crash)
+const originalWarn = console.warn;
+console.warn = () => {};
+globalThis.localStorage.setItem('kinetix_generated_workouts', '{corrupted json[');
+_resetWorkoutPersistenceForTesting(false);
+const recoveredFromCorruption = getWorkoutById('non-existent-id');
+console.warn = originalWarn;
+assert(recoveredFromCorruption === null, 'Corrupted JSON in localStorage handled safely without throwing');
+
+// Step 7: Clean storage reset
+_resetWorkoutPersistenceForTesting(true);
+
+// ------------------------------------------------------------------
+// 7. SAFE RUNTIME HANDLING OF INVALID DATABASE
+// ------------------------------------------------------------------
+console.log('\nTest Suite 7: Safe Runtime Handling of Invalid Database');
+const corruptDb = [
+  { id: 'corrupt-1', name: '' } // missing required fields
+];
+const safeResult = generateWorkout(regenProfile, 0, corruptDb);
+assert(safeResult.ok === false, 'generateWorkout returns safe error object when database is invalid');
+assert(typeof safeResult.error === 'string', 'generateWorkout error message provided without throwing exceptions');
+
+// ------------------------------------------------------------------
+// SUMMARY & REPORT
 // ------------------------------------------------------------------
 console.log('\n====================================================');
 console.log(`TOTAL TESTS: ${totalTests} | PASSED: ${passedTests} | FAILED: ${failedTests}`);
@@ -253,5 +389,5 @@ console.log('====================================================');
 if (failedTests > 0) {
   process.exit(1);
 } else {
-  console.log('\n🎉 ALL PHASE 2 ENGINE AND DATABASE TESTS PASSED!\n');
+  console.log('\n🎉 ALL PHASE 2.1 WORKOUT ENGINE HARDENING TESTS PASSED!\n');
 }

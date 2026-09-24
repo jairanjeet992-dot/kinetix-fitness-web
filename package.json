@@ -1,0 +1,9 @@
+{
+  "name": "kinetix-fitness-web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node test/workout-engine.test.js && node test/ui-integration.test.js"
+  }
+}

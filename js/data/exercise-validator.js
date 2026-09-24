@@ -110,7 +110,13 @@ export function validateExerciseRecord(exercise) {
 
   // 9. Instructions check
   if (!Array.isArray(exercise.instructions) || exercise.instructions.length === 0) {
-    errors.push(`[${exercise.id}] instructions must be a non-empty array of strings`);
+    errors.push(`[${exercise.id || 'unknown'}] instructions must be a non-empty array of strings`);
+  } else {
+    exercise.instructions.forEach((ins, idx) => {
+      if (typeof ins !== 'string' || !ins.trim()) {
+        errors.push(`[${exercise.id || 'unknown'}] instruction at index ${idx} must be a non-empty string`);
+      }
+    });
   }
 
   return errors;
@@ -160,7 +166,7 @@ export function validateExerciseDatabase(exerciseList = []) {
     if (typeof ex.name === 'string' && ex.name.trim()) {
       const normalizedName = ex.name.trim().toLowerCase();
       if (seenNames.has(normalizedName)) {
-        warnings.push(`Duplicate exercise name detected: "${ex.name}"`);
+        errors.push(`Duplicate exercise name detected: "${ex.name}"`);
       } else {
         seenNames.add(normalizedName);
       }
