@@ -14,6 +14,8 @@ import {
   FOCUS_AREA_TO_MUSCLES
 } from '../data/taxonomy.js';
 import { getExercisePerformanceHistory } from '../analytics/performance-tracker.js';
+import { showExerciseDetailModal } from '../components/exercise-media.js';
+import { resolveExerciseWithCoachMedia } from '../data/coach-system.js';
 
 export function renderExerciseLibrary(container) {
   let activeMuscle = 'All';
@@ -95,7 +97,8 @@ export function renderExerciseLibrary(container) {
       return;
     }
 
-    listContainer.innerHTML = filtered.map(ex => {
+    listContainer.innerHTML = filtered.map(rawEx => {
+      const ex = resolveExerciseWithCoachMedia(rawEx);
       const eqDisplay = (ex.equipment || [])
         .map(eq => EQUIPMENT_LABELS[eq] || eq)
         .filter(eq => eq !== 'No Equipment')
@@ -109,13 +112,35 @@ export function renderExerciseLibrary(container) {
         .map(m => MUSCLE_LABELS[m] || m)
         .join(', ');
 
+      const hasThumbnail = ex.media && ex.media.thumbnail;
+
       return `
         <div class="exercise-card card-interactive" data-exercise-id="${ex.id}" role="button" tabindex="0" aria-label="View details for ${ex.name}">
           <div class="exercise-thumb">
-            ${getExercisePlaceholderSvg(ex.svgType || 'upper-push')}
+            ${hasThumbnail ? `
+              <img
+                src="${ex.media.thumbnail}"
+                alt="${ex.name} demonstration thumbnail"
+                class="exercise-thumb-img"
+                loading="lazy"
+                onerror="this.style.display='none'; const fb = this.parentElement ? this.parentElement.querySelector('.exercise-thumb-svg') : null; if (fb) fb.style.display='flex';"
+              />
+              <div class="exercise-thumb-svg" style="display: none;">
+                ${getExercisePlaceholderSvg(ex.svgType || 'upper-push')}
+              </div>
+            ` : `
+              ${getExercisePlaceholderSvg(ex.svgType || 'upper-push')}
+            `}
           </div>
           <div class="exercise-info">
-            <div class="exercise-name">${ex.name}</div>
+            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+              <span class="exercise-name">${ex.name}</span>
+              ${ex.coach ? `
+                <span class="badge" style="background: rgba(255, 84, 46, 0.12); color: var(--color-primary); font-size: 10px; padding: 1px 6px;">
+                  Coach Kai
+                </span>
+              ` : ''}
+            </div>
             <div class="exercise-details">
               <strong>${primaryDisplay}</strong> &bull; ${eqDisplay} &bull; ${ex.defaultReps}
             </div>
@@ -154,149 +179,7 @@ export function renderExerciseLibrary(container) {
   }
 
   function showExerciseModal(ex) {
-    const existingModal = document.querySelector('#exercise-detail-modal');
-    if (existingModal) existingModal.remove();
-
-    const primaryDisplay = (ex.primaryMuscles || []).map(m => MUSCLE_LABELS[m] || m).join(', ');
-    const secDisplay = (ex.secondaryMuscles || []).map(m => MUSCLE_LABELS[m] || m).join(', ');
-    const eqDisplay = (ex.equipment || []).map(eq => EQUIPMENT_LABELS[eq] || eq).join(', ');
-
-    const instructionsList = Array.isArray(ex.instructions)
-      ? ex.instructions.map((step, idx) => `<li style="margin-bottom: 6px;">${step}</li>`).join('')
-      : `<li>${ex.instructions}</li>`;
-
-    const perfHistory = getExercisePerformanceHistory(ex.id);
-
-    const modalHtml = `
-      <div class="modal-backdrop is-active" id="exercise-detail-modal" role="dialog" aria-modal="true" aria-labelledby="modal-ex-title">
-        <div class="modal-card view-enter" style="max-width: 540px; max-height: 90vh; overflow-y: auto;">
-          <div class="modal-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-3);">
-            <div>
-              <span class="badge badge-primary" style="margin-bottom: 6px;">${CATEGORY_LABELS[ex.category] || ex.category}</span>
-              <h2 id="modal-ex-title" class="text-h2" style="margin: 0;">${ex.name}</h2>
-            </div>
-            <button type="button" class="btn btn-ghost btn-sm" id="btn-modal-close" aria-label="Close modal" style="font-size: 20px; line-height: 1; padding: 4px 8px;">
-              &times;
-            </button>
-          </div>
-
-          <!-- Media Demonstration Visual Stage -->
-          <div class="player-media-stage" style="border-radius: var(--radius-md); aspect-ratio: 16 / 9; margin-bottom: var(--space-4);">
-            ${getExercisePlaceholderSvg(ex.svgType || 'upper-push')}
-            <span class="badge badge-dark" style="margin-top: var(--space-2); background: rgba(255, 255, 255, 0.15); color: #FFF;">
-              Biomechanical Movement Demonstration
-            </span>
-          </div>
-
-          <!-- Metadata Badges Strip -->
-          <div class="grid grid-cols-2 grid-tablet-3 gap-2" style="margin-bottom: var(--space-4);">
-            <div class="card" style="padding: var(--space-2) var(--space-3); text-align: center; background: var(--color-surface-secondary); border: none;">
-              <span class="text-caption text-muted">DIFFICULTY</span>
-              <div class="text-label" style="margin-top: 2px;">${ex.difficulty.charAt(0).toUpperCase() + ex.difficulty.slice(1)}</div>
-            </div>
-            <div class="card" style="padding: var(--space-2) var(--space-3); text-align: center; background: var(--color-surface-secondary); border: none;">
-              <span class="text-caption text-muted">DEFAULT SETS</span>
-              <div class="text-label" style="margin-top: 2px;">${ex.defaultSets || 3} Sets</div>
-            </div>
-            <div class="card" style="padding: var(--space-2) var(--space-3); text-align: center; background: var(--color-surface-secondary); border: none;">
-              <span class="text-caption text-muted">BURN RATE</span>
-              <div class="text-label" style="margin-top: 2px;">~${ex.estimatedCaloriesPerMinute || 7} cal/min</div>
-            </div>
-          </div>
-
-          <!-- Muscle Focus Details -->
-          <div style="margin-bottom: var(--space-4);">
-            <div class="text-label" style="margin-bottom: 4px;">Primary Muscle Target:</div>
-            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px;">
-              <span class="chip is-active" style="cursor: default;">${primaryDisplay}</span>
-            </div>
-            ${secDisplay ? `
-              <div class="text-caption text-muted" style="margin-bottom: 4px;">Secondary Stabilizers:</div>
-              <div class="text-body-sm" style="color: var(--color-text-secondary);">${secDisplay}</div>
-            ` : ''}
-          </div>
-
-          <!-- Equipment Required -->
-          <div style="margin-bottom: var(--space-4);">
-            <div class="text-label" style="margin-bottom: 4px;">Required Equipment:</div>
-            <div class="text-body-sm" style="color: var(--color-text-secondary);">${eqDisplay}</div>
-          </div>
-
-          <!-- Form & Biomechanical Instructions -->
-          <div style="margin-bottom: var(--space-4);">
-            <div class="text-label" style="margin-bottom: 6px;">Coaching & Technique Cues:</div>
-            <ol class="text-body-sm" style="padding-left: 20px; line-height: 1.5; color: var(--color-text-secondary);">
-              ${instructionsList}
-            </ol>
-          </div>
-
-          <!-- Personal Records & Training History (Phase 5) -->
-          <div style="margin-bottom: var(--space-5); padding: var(--space-3); background: var(--color-surface-secondary); border-radius: var(--radius-md); border: 1px solid var(--color-border);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-              <span class="text-label" style="display: flex; align-items: center; gap: 6px;">
-                <span>🏆</span> Personal Records & History
-              </span>
-              <span class="badge ${perfHistory.hasHistory ? 'badge-primary' : 'badge-secondary'}">
-                ${perfHistory.hasHistory ? `${perfHistory.totalSetsLogged} sets logged` : 'No logs yet'}
-              </span>
-            </div>
-
-            ${perfHistory.hasHistory ? `
-              <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px;">
-                ${perfHistory.personalBests.heaviest_weight ? `
-                  <span class="badge badge-gold">Max: ${perfHistory.personalBests.heaviest_weight.formattedValue}</span>
-                ` : ''}
-                ${perfHistory.personalBests.estimated_1rm ? `
-                  <span class="badge badge-gold">Est 1RM: ${perfHistory.personalBests.estimated_1rm.formattedValue}</span>
-                ` : ''}
-                ${perfHistory.personalBests.best_reps ? `
-                  <span class="badge badge-gold">${perfHistory.personalBests.best_reps.formattedValue}</span>
-                ` : ''}
-                ${perfHistory.personalBests.longest_duration ? `
-                  <span class="badge badge-gold">Best Time: ${perfHistory.personalBests.longest_duration.formattedValue}</span>
-                ` : ''}
-              </div>
-
-              ${perfHistory.previousPerformance ? `
-                <div style="font-size: 12px; color: var(--color-text-secondary);">
-                  <strong>Last Session:</strong> ${perfHistory.previousPerformance.sets.map(s => s.weightKg ? `${s.weightKg}kg×${s.reps}` : (s.reps ? `${s.reps}r` : `${s.durationSeconds}s`)).join(', ')}
-                </div>
-              ` : ''}
-            ` : `
-              <p class="text-caption text-muted" style="margin: 0;">
-                Log weights and reps during a workout to track personal bests and volume progression for this movement.
-              </p>
-            `}
-          </div>
-
-          <div style="text-align: right;">
-            <button type="button" class="btn btn-primary" id="btn-modal-done" style="width: 100%;">Done</button>
-          </div>
-        </div>
-      </div>
-    `;
-
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-    const modalEl = document.querySelector('#exercise-detail-modal');
-    const closeBtn = modalEl.querySelector('#btn-modal-close');
-    const doneBtn = modalEl.querySelector('#btn-modal-done');
-
-    const closeModal = () => {
-      modalEl.remove();
-      document.removeEventListener('keydown', handleEsc);
-    };
-
-    const handleEsc = (e) => {
-      if (e.key === 'Escape') closeModal();
-    };
-
-    closeBtn.addEventListener('click', closeModal);
-    doneBtn.addEventListener('click', closeModal);
-    modalEl.addEventListener('click', (e) => {
-      if (e.target === modalEl) closeModal();
-    });
-    document.addEventListener('keydown', handleEsc);
+    showExerciseDetailModal(ex);
   }
 
   container.innerHTML = `

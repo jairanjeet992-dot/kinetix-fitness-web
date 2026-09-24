@@ -12,7 +12,8 @@
  */
 
 import { getWorkoutById } from '../data/workouts.js';
-import { getExercisePlaceholderSvg } from '../data/exercises.js';
+import { getExercisePlaceholderSvg, getExerciseById } from '../data/exercises.js';
+import { renderExerciseMedia, showExerciseDetailModal } from '../components/exercise-media.js';
 import {
   initSession,
   getActiveSession,
@@ -147,11 +148,23 @@ function startPlayerView(container, workout, routine, initialSession) {
     }, 4000);
   }
 
+  function stopMedia() {
+    if (container && typeof container.querySelectorAll === 'function') {
+      const videos = container.querySelectorAll('video');
+      videos.forEach(v => {
+        if (v && typeof v.pause === 'function') {
+          v.pause();
+        }
+      });
+    }
+  }
+
   function stopTimer() {
     if (timerInterval) {
       clearInterval(timerInterval);
       timerInterval = null;
     }
+    stopMedia();
   }
 
   container._kinetixStopTimer = stopTimer;
@@ -242,6 +255,7 @@ function startPlayerView(container, workout, routine, initialSession) {
     const safeIdx = Math.min(Math.max(0, session.currentExerciseIndex || 0), routine.length - 1);
     const currentEx = routine[safeIdx];
     const nextEx = routine[safeIdx + 1];
+    const masterEx = getExerciseById(currentEx.id) || currentEx;
 
     const isLastExercise = safeIdx === routine.length - 1;
     const isLastSet = session.currentSet >= currentEx.totalSets;
@@ -302,16 +316,8 @@ function startPlayerView(container, workout, routine, initialSession) {
 
         <!-- Player Card Container -->
         <div class="player-container">
-          <!-- Exercise Media Visual Stage -->
-          <div class="player-media-stage">
-            ${getExercisePlaceholderSvg(currentEx.svgType)}
-            <div class="text-caption" style="color: rgba(255, 255, 255, 0.75); letter-spacing: 0.05em; text-transform: uppercase;">
-              ${currentEx.equipment} &bull; ${currentEx.primaryMuscle}
-            </div>
-            <span class="badge badge-dark" style="margin-top: var(--space-2); background: rgba(255, 255, 255, 0.15); color: #FFF;">
-              Difficulty: ${currentEx.difficulty}
-            </span>
-          </div>
+          <!-- Exercise Media Visual Stage (Coach Kai / Multi-Tier Media Fallback) -->
+          ${renderExerciseMedia(masterEx, { showCues: false })}
 
           <!-- Exercise Details & Action Center -->
           <div style="padding: var(--space-5) var(--space-6); text-align: center; display: flex; flex-direction: column; align-items: center;">
@@ -324,7 +330,13 @@ function startPlayerView(container, workout, routine, initialSession) {
               </span>
             </div>
 
-            <h2 class="text-h1" id="player-current-title" style="margin-bottom: var(--space-2);">${currentEx.name}</h2>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: var(--space-2); flex-wrap: wrap;">
+              <h2 class="text-h1" id="player-current-title" style="margin: 0;">${currentEx.name}</h2>
+              <button type="button" class="btn btn-ghost btn-sm" id="btn-player-exercise-guide" aria-label="View Form Guide and Demonstration Standard for ${currentEx.name}" title="View Form Guide" style="padding: 4px 8px; font-size: 11px; border: 1px solid var(--color-border); border-radius: var(--radius-pill); display: inline-flex; align-items: center; gap: 4px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                <span>Coach Guide</span>
+              </button>
+            </div>
 
             <!-- Reps or Timer Display -->
             ${currentEx.isTimed ? `
@@ -659,6 +671,15 @@ function startPlayerView(container, workout, routine, initialSession) {
   function attachExerciseControls() {
     const safeIdx = Math.min(Math.max(0, session.currentExerciseIndex || 0), routine.length - 1);
     const currentEx = routine[safeIdx];
+    const masterEx = getExerciseById(currentEx.id) || currentEx;
+
+    // Form Guide button
+    const guideBtn = container.querySelector('#btn-player-exercise-guide');
+    if (guideBtn) {
+      guideBtn.addEventListener('click', () => {
+        showExerciseDetailModal(masterEx);
+      });
+    }
 
     // Unit toggle buttons
     const unitToggles = container.querySelectorAll('.btn-unit-toggle');

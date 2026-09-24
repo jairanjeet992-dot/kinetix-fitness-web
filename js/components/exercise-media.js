@@ -1,11 +1,13 @@
 /**
  * EXERCISE MEDIA & VISUALIZATION ARCHITECTURE - KINETIX
  * Phase 8: Premium Biomechanical Movement Visualization & Failure-Safe Media
- * Phase 8.1 Hardening: XSS escaping, safe protocol validation, accessible focus trap
+ * Phase 8.1: Production Hardening (XSS escaping, protocol validation, accessible focus trap)
+ * Phase 9: Kinetix Coach System, Demonstration Standards & Multi-Tier Resolution
  */
 
 import { MUSCLE_LABELS, EQUIPMENT_LABELS, CATEGORY_LABELS } from '../data/taxonomy.js';
 import { getExerciseHistory } from '../state/workout-history.js';
+import { resolveExerciseWithCoachMedia, KINETIX_COACH } from '../data/coach-system.js';
 
 /**
  * Safely escapes characters for HTML insertion.
@@ -118,125 +120,114 @@ export function getBiomechanicalIllustration(movementPattern = 'squat', primaryM
           <circle cx="80" cy="36" r="6.5" fill="currentColor"/>
           <!-- Arms extending overhead -->
           <path class="bio-path-limb" d="M80 48 L66 38 L68 18 M80 48 L94 38 L92 18" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-          <!-- Dumbbell/Barbell bar overhead -->
-          <line x1="58" y1="18" x2="102" y2="18" stroke="rgba(255,255,255,0.6)" stroke-width="3" stroke-linecap="round"/>
-          <!-- Shoulders target pulse -->
-          <circle cx="70" cy="46" r="4" class="bio-muscle-pulse" fill="var(--color-primary, #FF542E)"/>
-          <circle cx="90" cy="46" r="4" class="bio-muscle-pulse" fill="var(--color-primary, #FF542E)"/>
-          <!-- Vertical trajectory arrow -->
-          <path class="bio-motion-arrow" d="M80 34 L80 20" stroke="var(--color-primary, #FF542E)" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-      `;
-
-    case 'squat':
-      // Squat: Hip depth below parallel, knees tracking toes, upright torso
-      return `
-        <svg ${baseSvgAttrs}>
-          <line x1="20" y1="108" x2="140" y2="108" stroke="rgba(255,255,255,0.2)" stroke-width="2" stroke-linecap="round"/>
-          <!-- Stand outline (start) -->
-          <path d="M72 108 L76 72 L78 40 M78 40 L80 72 L84 108" stroke="rgba(255,255,255,0.18)" stroke-width="2" stroke-dasharray="3 3"/>
-          <!-- Deep Squat Active Geometry -->
-          <circle cx="70" cy="42" r="6.5" fill="currentColor"/>
-          <path class="bio-path-body" d="M70 48 L76 74 L56 82 L70 108" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-          <path class="bio-path-body" d="M76 74 L60 84 L76 108" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-          <!-- Arms counter-balance forward -->
-          <path class="bio-path-limb" d="M72 52 L94 56" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-          <!-- Target: Quadriceps & Glutes -->
-          <circle cx="66" cy="80" r="5" class="bio-muscle-pulse" fill="var(--color-primary, #FF542E)"/>
-          <!-- Depth guide line -->
-          <line x1="48" y1="84" x2="96" y2="84" stroke="rgba(255,84,46,0.4)" stroke-width="1.5" stroke-dasharray="2 2"/>
-          <text x="100" y="87" fill="rgba(255,255,255,0.4)" font-size="8" font-family="sans-serif">PARALLEL</text>
+          <!-- Weights overhead -->
+          <line x1="60" y1="18" x2="76" y2="18" stroke="var(--color-primary, #FF542E)" stroke-width="3" stroke-linecap="round"/>
+          <line x1="84" y1="18" x2="100" y2="18" stroke="var(--color-primary, #FF542E)" stroke-width="3" stroke-linecap="round"/>
+          <!-- Deltoids highlight -->
+          <circle cx="70" cy="46" r="4.5" class="bio-muscle-pulse" fill="var(--color-primary, #FF542E)"/>
+          <circle cx="90" cy="46" r="4.5" class="bio-muscle-pulse" fill="var(--color-primary, #FF542E)"/>
+          <!-- Upward vector cue -->
+          <path class="bio-motion-arrow" d="M80 32 L80 14" stroke="var(--color-primary, #FF542E)" stroke-width="2" stroke-linecap="round"/>
         </svg>
       `;
 
     case 'hinge':
-      // Hip Hinge / Deadlift: Hips back, flat back, loaded posterior chain
+      // Romanian Deadlift / Kettlebell Swing: Hip hinge, posterior chain load
       return `
         <svg ${baseSvgAttrs}>
-          <line x1="16" y1="108" x2="144" y2="108" stroke="rgba(255,255,255,0.2)" stroke-width="2" stroke-linecap="round"/>
-          <!-- Hinge position -->
-          <circle cx="106" cy="46" r="6.5" fill="currentColor"/>
-          <path class="bio-path-body" d="M106 52 L68 64 L62 88 L72 108" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="16" y1="104" x2="144" y2="104" stroke="rgba(255,255,255,0.2)" stroke-width="2" stroke-linecap="round"/>
+          <!-- Hips shifted back, knees slightly bent -->
+          <path class="bio-path-body" d="M52 56 L64 68 L70 102 M64 68 L78 102" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <!-- Torso inclined forward (Spine neutral) -->
+          <path class="bio-path-body" d="M64 68 L108 52" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+          <circle cx="114" cy="48" r="6.5" fill="currentColor"/>
           <!-- Arms hanging straight down with load -->
-          <path class="bio-path-limb" d="M96 56 L96 90" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-          <circle cx="96" cy="94" r="5" fill="rgba(255,255,255,0.6)"/>
-          <!-- Target: Hamstrings / Glutes -->
-          <circle cx="64" cy="76" r="5" class="bio-muscle-pulse" fill="var(--color-primary, #FF542E)"/>
-          <!-- Hip displacement trajectory (Hips push back) -->
-          <path class="bio-motion-arrow" d="M78 62 L54 64" stroke="var(--color-primary, #FF542E)" stroke-width="2" stroke-linecap="round"/>
+          <path class="bio-path-limb" d="M104 54 L98 84" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="98" cy="88" r="5" fill="rgba(255,255,255,0.6)"/>
+          <!-- Posterior Chain Highlight: Glutes & Hamstrings -->
+          <circle cx="64" cy="70" r="5.5" class="bio-muscle-pulse" fill="var(--color-primary, #FF542E)"/>
+          <circle cx="68" cy="84" r="4.5" class="bio-muscle-pulse" fill="var(--color-primary, #FF542E)"/>
+          <!-- Hip travel vector cue (Back & Forth) -->
+          <path class="bio-motion-arrow" d="M78 68 L56 68" stroke="var(--color-primary, #FF542E)" stroke-width="2" stroke-linecap="round"/>
         </svg>
       `;
 
     case 'lunge':
-      // Split Lunge: 90-degree front and back knee angles
-      return `
-        <svg ${baseSvgAttrs}>
-          <line x1="16" y1="108" x2="144" y2="108" stroke="rgba(255,255,255,0.2)" stroke-width="2" stroke-linecap="round"/>
-          <circle cx="76" cy="40" r="6.5" fill="currentColor"/>
-          <!-- Torso upright -->
-          <path class="bio-path-body" d="M76 46 L76 72" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
-          <!-- Front leg 90 deg -->
-          <path class="bio-path-body" d="M76 72 L102 74 L102 108" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-          <!-- Back leg 90 deg dropping toward floor -->
-          <path class="bio-path-body" d="M76 72 L50 82 L50 106" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-          <!-- Target Quad/Glute -->
-          <circle cx="90" cy="74" r="4.5" class="bio-muscle-pulse" fill="var(--color-primary, #FF542E)"/>
-          <!-- Downward motion arrow -->
-          <path class="bio-motion-arrow" d="M76 56 L76 68" stroke="var(--color-primary, #FF542E)" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-      `;
-
-    case 'isometric':
-    case 'core':
-    case 'rotational':
-      // Plank / Core Brace: Rigid bridge, neutral spine, core locked
+      // Lunges / Split Squats: Split stance, 90-degree knees
       return `
         <svg ${baseSvgAttrs}>
           <line x1="16" y1="104" x2="144" y2="104" stroke="rgba(255,255,255,0.2)" stroke-width="2" stroke-linecap="round"/>
-          <!-- Rigid bridge plank -->
-          <circle cx="132" cy="62" r="6.5" fill="currentColor"/>
-          <path class="bio-path-body" d="M32 98 L56 86 L108 72 L128 66" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
-          <!-- Forearm support -->
-          <path class="bio-path-limb" d="M118 70 L118 98 L130 98" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-          <!-- Feet toes planted -->
-          <path class="bio-path-limb" d="M32 98 L36 102" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-          <!-- Core highlight -->
-          <circle cx="90" cy="77" r="5" class="bio-muscle-pulse" fill="var(--color-primary, #FF542E)"/>
-          <!-- Bracing ring indicator -->
-          <circle cx="90" cy="77" r="11" stroke="rgba(255,84,46,0.3)" stroke-width="1.5" stroke-dasharray="3 2"/>
+          <!-- Torso upright -->
+          <path class="bio-path-body" d="M76 44 L76 72" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+          <circle cx="76" cy="34" r="6.5" fill="currentColor"/>
+          <!-- Front Leg (90 degree bend) -->
+          <path class="bio-path-limb" d="M76 72 L104 74 L102 104" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <!-- Rear Leg (90 degree bend, knee near ground) -->
+          <path class="bio-path-limb" d="M76 72 L54 84 L52 102" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          <!-- Primary Quads / Glutes Highlight -->
+          <circle cx="92" cy="74" r="5" class="bio-muscle-pulse" fill="var(--color-primary, #FF542E)"/>
+          <circle cx="76" cy="74" r="4.5" class="bio-muscle-pulse" fill="var(--color-primary, #FF542E)"/>
+          <!-- Vertical descent arrow -->
+          <path class="bio-motion-arrow" d="M76 48 L76 64" stroke="var(--color-primary, #FF542E)" stroke-width="2" stroke-linecap="round"/>
         </svg>
       `;
 
-    case 'cardio':
-      // Dynamic High Cadence (Burpee, Jump Jacks)
+    case 'isolation':
+      // Bicep Curl / Lateral Raise / Tricep Extension
       return `
         <svg ${baseSvgAttrs}>
-          <line x1="16" y1="108" x2="144" y2="108" stroke="rgba(255,255,255,0.2)" stroke-width="2" stroke-linecap="round"/>
-          <circle cx="80" cy="30" r="6.5" fill="currentColor"/>
-          <!-- Explosive extension jumping pose -->
-          <path class="bio-path-body" d="M80 36 L80 68 L64 96 M80 68 L96 96" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-          <path class="bio-path-limb" d="M80 42 L60 26 M80 42 L100 26" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-          <!-- Full-body energy pulse -->
-          <circle cx="80" cy="54" r="5" class="bio-muscle-pulse" fill="var(--color-primary, #FF542E)"/>
-          <!-- Explosive velocity arrows -->
-          <path class="bio-motion-arrow" d="M54 22 L46 14 M106 22 L114 14" stroke="var(--color-primary, #FF542E)" stroke-width="2" stroke-linecap="round"/>
+          <line x1="20" y1="104" x2="140" y2="104" stroke="rgba(255,255,255,0.2)" stroke-width="2" stroke-linecap="round"/>
+          <!-- Standing Torso -->
+          <path class="bio-path-body" d="M80 44 L80 82 L72 104 M80 82 L88 104" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="80" cy="34" r="6.5" fill="currentColor"/>
+          <!-- Upper arm fixed at ribcage, forearm flexing upward -->
+          <path class="bio-path-limb" d="M80 46 L86 64 L102 52" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          <!-- Dumbbell -->
+          <circle cx="104" cy="50" r="4.5" fill="rgba(255,255,255,0.6)"/>
+          <!-- Bicep peak muscle pulse -->
+          <circle cx="92" cy="56" r="5" class="bio-muscle-pulse" fill="var(--color-primary, #FF542E)"/>
+          <!-- Flexion arc arrow -->
+          <path class="bio-motion-arrow" d="M96 70 C102 68 104 60 102 54" stroke="var(--color-primary, #FF542E)" stroke-width="2" stroke-linecap="round"/>
         </svg>
       `;
 
-    case 'mobility':
+    case 'core':
+      // Planks / Dead Bugs / Russian Twists: Torso horizontal bracing
+      return `
+        <svg ${baseSvgAttrs}>
+          <line x1="16" y1="104" x2="144" y2="104" stroke="rgba(255,255,255,0.2)" stroke-width="2" stroke-linecap="round"/>
+          <!-- Forearms on ground -->
+          <line x1="104" y1="104" x2="118" y2="104" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+          <line x1="104" y1="104" x2="104" y2="84" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+          <!-- Rigid torso line -->
+          <path class="bio-path-body" d="M34 100 L48 88 L104 84 L122 78" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="126" cy="74" r="6" fill="currentColor"/>
+          <!-- Core / Abdominal Shield Pulse -->
+          <circle cx="78" cy="85" r="5.5" class="bio-muscle-pulse" fill="var(--color-primary, #FF542E)"/>
+          <!-- Biomechanical isometric compression markers -->
+          <path d="M78 74 L78 94" stroke="var(--color-primary, #FF542E)" stroke-width="1.8" stroke-dasharray="2 2"/>
+        </svg>
+      `;
+
+    case 'squat':
     default:
-      // Mobility Stretch / Gentle Restorative Flow
+      // Air Squat / Goblet Squat: Deep knee and hip flexion with tall spine
       return `
         <svg ${baseSvgAttrs}>
-          <line x1="16" y1="106" x2="144" y2="106" stroke="rgba(255,255,255,0.2)" stroke-width="2" stroke-linecap="round"/>
-          <circle cx="44" cy="74" r="6" fill="currentColor"/>
-          <!-- Kneeling / child's pose decompression -->
-          <path class="bio-path-body" d="M48 78 C64 80 84 88 114 96" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
-          <path class="bio-path-limb" d="M48 78 L34 94 L50 102" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-          <path class="bio-path-limb" d="M60 82 L96 98 L114 100" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-          <!-- Spine decompression curve -->
-          <circle cx="78" cy="85" r="4.5" class="bio-muscle-pulse" fill="var(--color-primary, #FF542E)"/>
-          <path class="bio-motion-arrow" d="M64 72 C78 72 92 78 104 88" stroke="var(--color-primary, #FF542E)" stroke-width="1.8" stroke-dasharray="3 2"/>
+          <!-- Ground line -->
+          <line x1="16" y1="104" x2="144" y2="104" stroke="rgba(255,255,255,0.2)" stroke-width="2" stroke-linecap="round"/>
+          <!-- Squat position: Feet planted, deep knee bend, hips low -->
+          <path class="bio-path-body" d="M60 76 L86 64 L102 46" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="108" cy="40" r="6.5" fill="currentColor"/>
+          <!-- Legs in deep parallel flexion -->
+          <path class="bio-path-limb" d="M60 76 L76 76 L72 104" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path class="bio-path-limb" d="M60 76 L84 80 L88 104" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          <!-- Primary target: Quads / Glutes -->
+          <circle cx="74" cy="76" r="5.5" class="bio-muscle-pulse" fill="var(--color-primary, #FF542E)"/>
+          <circle cx="60" cy="76" r="4.5" class="bio-muscle-pulse" fill="var(--color-primary, #FF542E)"/>
+          <!-- Vertical power vector -->
+          <path class="bio-motion-arrow" d="M86 64 L86 48" stroke="var(--color-primary, #FF542E)" stroke-width="2" stroke-linecap="round"/>
+          <text x="100" y="87" fill="rgba(255,255,255,0.4)" font-size="8" font-family="sans-serif">PARALLEL</text>
         </svg>
       `;
   }
@@ -289,21 +280,24 @@ export function getExerciseBiomechanicalCues(exercise) {
 }
 
 /**
- * Renders the rich Exercise Media Stage HTML with resilient fallback.
+ * Renders the rich Exercise Media Stage HTML with multi-tier resolution fallback.
+ * Multi-Tier Resolution: Coach Motion -> Poster Image -> Procedural Biomechanical SVG.
  *
  * @param {Object} exercise - Exercise record
  * @param {Object} options - Display options
  * @returns {string} Safe HTML string
  */
 export function renderExerciseMedia(exercise, options = {}) {
-  // Fail-safe default if exercise record is null or malformed
-  const safeEx = exercise && typeof exercise === 'object' ? exercise : {
-    name: 'Movement Demonstration',
-    movementPattern: 'squat',
-    primaryMuscles: ['core'],
-    category: 'strength',
-    equipment: ['bodyweight']
-  };
+  // Enrich exercise with Coach Kai pilot metadata if applicable
+  const safeEx = resolveExerciseWithCoachMedia(
+    exercise && typeof exercise === 'object' ? exercise : {
+      name: 'Movement Demonstration',
+      movementPattern: 'squat',
+      primaryMuscles: ['core'],
+      category: 'strength',
+      equipment: ['bodyweight']
+    }
+  );
 
   const pattern = typeof safeEx.movementPattern === 'string' && safeEx.movementPattern.trim()
     ? safeEx.movementPattern.trim().toLowerCase()
@@ -323,20 +317,28 @@ export function renderExerciseMedia(exercise, options = {}) {
   const primaryMuscleName = MUSCLE_LABELS[rawMuscle] || (typeof rawMuscle === 'string' ? rawMuscle : 'Core');
   const vectorSvg = getBiomechanicalIllustration(pattern, primaryMuscles);
 
-  // Validate and sanitize media source URL
+  // Validate and sanitize media URLs
   const validSource = sanitizeMediaUrl(mediaDef.source);
-  const hasRealVideo = mediaDef.type === 'video' && Boolean(validSource);
+  const validPoster = sanitizeMediaUrl(mediaDef.poster);
+  const hasRealVideo = (mediaDef.type === 'video' || mediaDef.type === 'coach-motion') && Boolean(validSource);
   const hasRealImage = (mediaDef.type === 'image' || mediaDef.type === 'animation') && Boolean(validSource);
+
+  const coachIdentity = safeEx.coach || (mediaDef.coachId ? KINETIX_COACH : null);
+  const coachName = coachIdentity ? coachIdentity.name : 'Kinetix Coach';
 
   const escapedName = escapeHtml(safeEx.name || 'Exercise');
   const escapedPattern = escapeHtml(pattern.replace(/-/g, ' ').toUpperCase());
   const escapedMuscle = escapeHtml(primaryMuscleName);
+  const escapedCoachName = escapeHtml(coachName);
 
   const cuesHtml = options.showCues ? `
     <div class="exercise-cues-drawer" id="player-cues-drawer">
       <div class="exercise-cues-header">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
         <span>FORM CUES</span>
+        ${safeEx.demonstration && safeEx.demonstration.tempo ? `
+          <span class="badge badge-dark" style="margin-left: auto; font-size: 10px;">Tempo: ${escapeHtml(safeEx.demonstration.tempo)}</span>
+        ` : ''}
       </div>
       <ul class="exercise-cues-list">
         ${cues.map(c => `<li>${escapeHtml(c)}</li>`).join('')}
@@ -358,15 +360,28 @@ export function renderExerciseMedia(exercise, options = {}) {
           <video
             class="exercise-media-video"
             src="${validSource}"
+            ${validPoster ? `poster="${validPoster}"` : ''}
             autoplay
             loop
             muted
             playsinline
-            aria-label="${escapedName} video demonstration"
+            preload="none"
+            aria-label="${escapedName} video demonstration by ${escapedCoachName}"
             onerror="this.style.display='none'; if (typeof this.pause === 'function') this.pause(); const fb = this.parentElement ? this.parentElement.querySelector('.exercise-media-fallback') : null; if (fb) fb.style.display='flex';"
           ></video>
           <div class="exercise-media-fallback" style="display: none;">
-            ${vectorSvg}
+            ${validPoster ? `
+              <img
+                class="exercise-media-poster"
+                src="${validPoster}"
+                alt="${escapedName} demonstration poster"
+                loading="lazy"
+                onerror="this.style.display='none'; const vfb = this.parentElement.querySelector('.exercise-vector-fallback'); if (vfb) vfb.style.display='flex';"
+              />
+            ` : ''}
+            <div class="exercise-vector-fallback" style="${validPoster ? 'display: none;' : ''}">
+              ${vectorSvg}
+            </div>
           </div>
         ` : hasRealImage ? `
           <img
@@ -387,11 +402,18 @@ export function renderExerciseMedia(exercise, options = {}) {
         `}
       </div>
 
-      <!-- Stage Overlays: Muscle and Pattern badges -->
+      <!-- Stage Overlays: Muscle, Pattern, and Coach Badges -->
       <div class="exercise-media-meta-overlay">
-        <span class="badge badge-dark exercise-media-pattern-badge">
-          ${escapedPattern}
-        </span>
+        <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+          <span class="badge badge-dark exercise-media-pattern-badge">
+            ${escapedPattern}
+          </span>
+          ${coachIdentity ? `
+            <span class="badge badge-dark exercise-coach-badge" style="background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 84, 46, 0.4); color: #FFF;">
+              <span style="color: var(--color-primary, #FF542E); margin-right: 4px;">●</span>${escapedCoachName}
+            </span>
+          ` : ''}
+        </div>
         <span class="badge badge-primary exercise-media-muscle-badge">
           Target: ${escapedMuscle}
         </span>
@@ -410,39 +432,52 @@ export function renderExerciseMedia(exercise, options = {}) {
  * @param {Object} ex - Exercise object
  */
 export function showExerciseDetailModal(ex) {
-  if (!ex || typeof ex !== 'object') return;
-  if (typeof document === 'undefined') return;
+  if (!ex || typeof ex !== 'object') return null;
+  if (typeof document === 'undefined') return null;
 
   const previouslyFocused = document.activeElement;
 
   const existingModal = document.querySelector('#exercise-detail-modal');
   if (existingModal) existingModal.remove();
 
-  const primaryDisplay = (ex.primaryMuscles || []).map(m => MUSCLE_LABELS[m] || m).join(', ');
-  const secDisplay = (ex.secondaryMuscles || []).map(m => MUSCLE_LABELS[m] || m).join(', ');
-  const eqDisplay = (ex.equipment || []).map(eq => EQUIPMENT_LABELS[eq] || eq).join(', ');
+  // Enrich with Coach Kai demonstration standards
+  const enrichedEx = resolveExerciseWithCoachMedia(ex);
 
-  const instructionsList = Array.isArray(ex.instructions)
-    ? ex.instructions.map((step) => `<li style="margin-bottom: 6px;">${escapeHtml(step)}</li>`).join('')
-    : `<li>${escapeHtml(ex.instructions || 'Perform movement with strict control.')}</li>`;
+  const primaryDisplay = (enrichedEx.primaryMuscles || []).map(m => MUSCLE_LABELS[m] || m).join(', ');
+  const secDisplay = (enrichedEx.secondaryMuscles || []).map(m => MUSCLE_LABELS[m] || m).join(', ');
+  const eqDisplay = (enrichedEx.equipment || []).map(eq => EQUIPMENT_LABELS[eq] || eq).join(', ');
+
+  const instructionsList = Array.isArray(enrichedEx.instructions)
+    ? enrichedEx.instructions.map((step) => `<li style="margin-bottom: 6px;">${escapeHtml(step)}</li>`).join('')
+    : `<li>${escapeHtml(enrichedEx.instructions || 'Perform movement with strict control.')}</li>`;
 
   // Fetch real performance history for this exercise
-  const history = getExerciseHistory(ex.id) || { totalSets: 0, maxReps: 0, maxWeight: 0, lastPerformed: 'Never' };
+  const history = getExerciseHistory(enrichedEx.id) || { totalSets: 0, maxReps: 0, maxWeight: 0, lastPerformed: 'Never' };
 
-  const escapedName = escapeHtml(ex.name || 'Exercise');
-  const escapedCategory = escapeHtml(CATEGORY_LABELS[ex.category] || ex.category || 'Movement');
-  const escapedDifficulty = escapeHtml(ex.difficulty ? ex.difficulty.charAt(0).toUpperCase() + ex.difficulty.slice(1) : 'Beginner');
-  const escapedReps = escapeHtml(ex.defaultReps || '12 Reps');
+  const escapedName = escapeHtml(enrichedEx.name || 'Exercise');
+  const escapedCategory = escapeHtml(CATEGORY_LABELS[enrichedEx.category] || enrichedEx.category || 'Movement');
+  const escapedDifficulty = escapeHtml(enrichedEx.difficulty ? enrichedEx.difficulty.charAt(0).toUpperCase() + enrichedEx.difficulty.slice(1) : 'Beginner');
+  const escapedReps = escapeHtml(enrichedEx.defaultReps || '12 Reps');
   const escapedPrimary = escapeHtml(primaryDisplay || 'Core');
   const escapedSec = escapeHtml(secDisplay || '');
   const escapedEq = escapeHtml(eqDisplay || 'Bodyweight');
+
+  const demo = enrichedEx.demonstration;
+  const coachIdentity = enrichedEx.coach;
 
   const modalHtml = `
     <div class="modal-backdrop is-active" id="exercise-detail-modal" role="dialog" aria-modal="true" aria-labelledby="modal-ex-title">
       <div class="modal-card view-enter" style="max-width: 540px; max-height: 90vh; overflow-y: auto;">
         <div class="modal-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-3);">
           <div>
-            <span class="badge badge-primary" style="margin-bottom: 6px;">${escapedCategory}</span>
+            <div style="display: flex; gap: 6px; align-items: center; margin-bottom: 6px; flex-wrap: wrap;">
+              <span class="badge badge-primary">${escapedCategory}</span>
+              ${coachIdentity ? `
+                <span class="badge" style="background: rgba(255, 84, 46, 0.15); color: var(--color-primary); border: 1px solid rgba(255, 84, 46, 0.35); font-size: 11px;">
+                  Coach ${escapeHtml(coachIdentity.name)}
+                </span>
+              ` : ''}
+            </div>
             <h2 id="modal-ex-title" class="text-h2" style="margin: 0;">${escapedName}</h2>
           </div>
           <button type="button" class="btn btn-ghost btn-sm" id="btn-modal-close" aria-label="Close modal" style="font-size: 20px; line-height: 1; padding: 4px 8px;">
@@ -452,8 +487,34 @@ export function showExerciseDetailModal(ex) {
 
         <!-- Biomechanical Movement Demonstration Stage -->
         <div style="border-radius: var(--radius-md); overflow: hidden; margin-bottom: var(--space-4);">
-          ${renderExerciseMedia(ex, { showCues: true })}
+          ${renderExerciseMedia(enrichedEx, { showCues: true })}
         </div>
+
+        <!-- Coach Kai Demonstration Standard Breakdown -->
+        ${demo ? `
+          <div class="card" style="margin-bottom: var(--space-4); background: var(--color-surface-secondary); border: 1px solid rgba(255, 84, 46, 0.25); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+              <span style="font-weight: 700; color: var(--color-primary); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">
+                Demonstration Standard &bull; ${escapeHtml(coachIdentity ? coachIdentity.name : 'Coach Kai')}
+              </span>
+              <span class="badge badge-dark" style="font-size: 10px;">Tempo: ${escapeHtml(demo.tempo)}</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; line-height: 1.4; color: var(--color-text-secondary);">
+              <div><strong style="color: var(--color-text-primary);">Starting Posture:</strong> ${escapeHtml(demo.startPosition)}</div>
+              <div><strong style="color: var(--color-text-primary);">Movement Trajectory:</strong> ${escapeHtml(demo.movement)}</div>
+              <div><strong style="color: var(--color-text-primary);">Contraction & Lockout:</strong> ${escapeHtml(demo.endPosition)}</div>
+              <div style="color: var(--color-primary); margin-top: 2px;">
+                <strong>Primary Form Cue:</strong> ${escapeHtml(demo.primaryFormCue)}
+              </div>
+              ${demo.commonMistake ? `
+                <div style="color: #FFA502; margin-top: 2px; display: flex; align-items: flex-start; gap: 4px;">
+                  <span>&#9888;</span>
+                  <span><strong>Avoid Mistake:</strong> ${escapeHtml(demo.commonMistake)}</span>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        ` : ''}
 
         <!-- Metadata Badges Strip -->
         <div class="grid grid-cols-3 gap-2" style="margin-bottom: var(--space-4);">
@@ -467,7 +528,7 @@ export function showExerciseDetailModal(ex) {
           </div>
           <div class="card" style="padding: var(--space-2) var(--space-3); text-align: center; background: var(--color-surface-secondary); border: none;">
             <span class="text-caption text-muted">BURN RATE</span>
-            <div class="text-label" style="margin-top: 2px;">~${Math.round(ex.estimatedCaloriesPerMinute || 7)} cal/m</div>
+            <div class="text-label" style="margin-top: 2px;">~${Math.round(enrichedEx.estimatedCaloriesPerMinute || 7)} cal/m</div>
           </div>
         </div>
 

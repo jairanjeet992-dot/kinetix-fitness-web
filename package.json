@@ -5,7 +5,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node test/workout-engine.test.js && node test/ui-integration.test.js && node test/workout-player.test.js && node test/progress-analytics.test.js && node test/weight-logging-pr.test.js && node test/adaptive-engine.test.js && node test/adaptive-hardening.test.js && node test/training-plan.test.js && node test/training-plan-hardening.test.js && node test/phase8-player.test.js && node test/phase8-hardening.test.js"
+    "test": "node test/workout-engine.test.js && node test/ui-integration.test.js && node test/workout-player.test.js && node test/progress-analytics.test.js && node test/weight-logging-pr.test.js && node test/adaptive-engine.test.js && node test/adaptive-hardening.test.js && node test/training-plan.test.js && node test/training-plan-hardening.test.js && node test/phase8-player.test.js && node test/phase8-hardening.test.js && node test/phase9-media.test.js"
   },
   "keywords": [
     "fitness",
