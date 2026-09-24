@@ -1,0 +1,60 @@
+{
+  "version": "0.1",
+  "coachId": "coach-kai",
+  "status": "MOTION_SPEC_READY",
+  "productionPaths": {
+    "video": "assets/media/coach-kai/<exercise>.mp4",
+    "poster": "assets/media/coach-kai/<exercise>-poster.webp",
+    "thumbnail": "assets/media/coach-kai/<exercise>-thumb.webp"
+  },
+  "assets": [
+    {
+      "exerciseId": "air-squat",
+      "movementPattern": "squat",
+      "tempo": "3-0-1-0",
+      "status": "PENDING_RENDER"
+    },
+    {
+      "exerciseId": "push-up",
+      "movementPattern": "horizontal-push",
+      "tempo": "2-0-1-0",
+      "status": "PENDING_RENDER"
+    },
+    {
+      "exerciseId": "pull-up",
+      "movementPattern": "vertical-pull",
+      "tempo": "2-1-1-1",
+      "status": "PENDING_RENDER"
+    },
+    {
+      "exerciseId": "romanian-deadlift",
+      "movementPattern": "hinge",
+      "tempo": "3-1-1-0",
+      "status": "PENDING_RENDER"
+    },
+    {
+      "exerciseId": "walking-lunge",
+      "movementPattern": "lunge",
+      "tempo": "2-0-1-0",
+      "status": "PENDING_RENDER"
+    },
+    {
+      "exerciseId": "bicep-curl",
+      "movementPattern": "isolation",
+      "tempo": "2-1-2-0",
+      "status": "PENDING_RENDER"
+    },
+    {
+      "exerciseId": "forearm-plank",
+      "movementPattern": "core-isometric",
+      "tempo": "isometric",
+      "status": "PENDING_RENDER"
+    },
+    {
+      "exerciseId": "jumping-jack",
+      "movementPattern": "full-body-cardio",
+      "tempo": "1-0-1-0",
+      "status": "PENDING_RENDER"
+    }
+  ]
+}
