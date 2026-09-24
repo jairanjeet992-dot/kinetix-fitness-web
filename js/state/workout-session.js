@@ -13,6 +13,7 @@
 
 import { getExerciseById } from '../data/exercises.js';
 import { calculateSessionTrainingLoad } from '../analytics/training-load.js';
+import { savePerformanceRecord, createPerformanceRecord } from '../analytics/performance-tracker.js';
 
 export const STORAGE_KEY_SESSION = 'kinetix_active_workout_session';
 export const STORAGE_KEY_HISTORY = 'kinetix_workout_history';
@@ -154,7 +155,8 @@ export function initSession(workout) {
     lastTickAt: Date.now(),
     completedExercises: [],
     completedSets: 0,
-    skippedExercises: []
+    skippedExercises: [],
+    performanceLogs: []
   };
 
   saveActiveSession(session);
@@ -330,14 +332,53 @@ export function resumeSession(session) {
 
 /**
  * Advances the session after completing a set.
+ * Optionally logs performance data for the completed set.
+ *
+ * @param {Object} session
+ * @param {Object} workout
+ * @param {Object|null} [setLogData=null]
+ * @returns {Object}
  */
-export function completeSet(session, workout) {
+export function completeSet(session, workout, setLogData = null) {
   if (!session || session.isCompleted) return session;
   if (session.phase === 'REST') return session; // Prevent duplicate set completions while resting
 
   const routine = getRoutineItems(workout);
   const currentEx = routine[session.currentExerciseIndex];
   if (!currentEx) return session;
+
+  // Optional Performance Record Logging (Phase 5)
+  if (setLogData && typeof setLogData === 'object') {
+    const rawSetNumber = Number(setLogData.setNumber) || session.currentSet;
+    const perfRecord = createPerformanceRecord({
+      sessionId: session.sessionId,
+      workoutId: session.workoutId,
+      exerciseId: currentEx.id,
+      setNumber: rawSetNumber,
+      weight: setLogData.weight,
+      weightKg: setLogData.weightKg,
+      unit: setLogData.unit || 'kg',
+      reps: setLogData.reps,
+      durationSeconds: setLogData.durationSeconds !== undefined ? setLogData.durationSeconds : (setLogData.duration !== undefined ? setLogData.duration : null),
+      distanceMeters: setLogData.distanceMeters !== undefined ? setLogData.distanceMeters : (setLogData.distance !== undefined ? setLogData.distance : null),
+      isCompleted: setLogData.completed !== false && setLogData.isCompleted !== false,
+      completedAt: setLogData.completedAt || new Date().toISOString()
+    });
+
+    if (perfRecord) {
+      savePerformanceRecord(perfRecord);
+      session.performanceLogs = session.performanceLogs || [];
+      const existingIdx = session.performanceLogs.findIndex(p =>
+        p.id === perfRecord.id ||
+        (p.exerciseId === perfRecord.exerciseId && p.setNumber === perfRecord.setNumber)
+      );
+      if (existingIdx >= 0) {
+        session.performanceLogs[existingIdx] = perfRecord;
+      } else {
+        session.performanceLogs.push(perfRecord);
+      }
+    }
+  }
 
   session.completedSets = (session.completedSets || 0) + 1;
 
@@ -720,6 +761,14 @@ export function sanitizeHistoryRecord(raw) {
     trainingLoad: 0
   };
 
+  // Phase 5 Performance Tracking
+  if (Array.isArray(raw.performanceLogs)) {
+    sanitized.performanceLogs = raw.performanceLogs;
+  }
+  if (Number.isFinite(Number(raw.totalVolumeKg)) && Number(raw.totalVolumeKg) >= 0) {
+    sanitized.totalVolumeKg = Math.round(Number(raw.totalVolumeKg) * 10) / 10;
+  }
+
   sanitized.trainingLoad = Number.isFinite(Number(raw.trainingLoad)) && Number(raw.trainingLoad) > 0
     ? Math.round(Number(raw.trainingLoad))
     : calculateSessionTrainingLoad(sanitized);
@@ -757,6 +806,9 @@ export function completeWorkout(session, workout) {
   const completedIds = Array.isArray(session.completedExercises) ? [...session.completedExercises] : [];
   const skippedIds = Array.isArray(session.skippedExercises) ? [...session.skippedExercises] : [];
 
+  const perfLogs = Array.isArray(session.performanceLogs) ? session.performanceLogs : [];
+  const totalVolumeKg = perfLogs.reduce((acc, log) => acc + (Number(log.volumeKg) || 0), 0);
+
   const rawRecord = {
     sessionId: session.sessionId,
     workoutId: session.workoutId,
@@ -776,6 +828,8 @@ export function completeWorkout(session, workout) {
     totalSets: Math.max(totalRoutineSets, completedSetsCount),
     setsCompleted: completedSetsCount,
     completedSets: completedSetsCount,
+    performanceLogs: perfLogs,
+    totalVolumeKg: Math.round(totalVolumeKg * 10) / 10,
     workoutGoal: (workout && workout.goal) || session.workoutGoal || null,
     workoutDifficulty: (workout && workout.difficulty) || session.workoutDifficulty || null,
     estimatedCalories: estCalories,

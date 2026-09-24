@@ -128,3 +128,21 @@ export function computeSessionMilestones(historyRecords = []) {
     hasRealData: historyRecords.length > 0
   };
 }
+
+export {
+  PR_TYPES,
+  PR_LABELS,
+  lbsToKg,
+  kgToLbs,
+  formatWeight,
+  sanitizePerformanceRecord,
+  createPerformanceRecord,
+  getPerformanceRecords,
+  savePerformanceRecord,
+  savePerformanceRecords,
+  getPerformanceRecordsForExercise,
+  getPerformanceRecordsForSession,
+  detectPersonalRecords,
+  getAllPersonalRecords,
+  getExercisePerformanceHistory
+} from './performance-tracker.js';

@@ -22,6 +22,7 @@ import {
   calculateRecentTrainingLoad
 } from './training-load.js';
 import { computeSessionMilestones } from './pr-model.js';
+import { getAllPersonalRecords, getPerformanceRecords } from './performance-tracker.js';
 import { EXERCISES } from '../data/exercises.js';
 import {
   ALL_CANONICAL_MUSCLES,
@@ -69,7 +70,9 @@ export function getEmptyProgressAnalytics() {
       totalTrainingLoad: 0,
       recentTrainingLoad: 0,
       avgDurationMinutes: 0,
-      avgSetsPerWorkout: 0
+      avgSetsPerWorkout: 0,
+      totalVolumeKg: 0,
+      totalPRsCount: 0
     },
     frequency: {
       weeklyWorkouts: 0,
@@ -86,11 +89,20 @@ export function getEmptyProgressAnalytics() {
     muscles: {
       distribution: muscleDistribution,
       topMuscles: [],
-      mostTrainedMuscle: null
+      mostTrainedMuscle: null,
+      isEstimated: true,
+      attributionMethod: 'proportional-session-sets'
     },
     exercises: {
       topExercises: [],
       uniqueExercisesCount: 0
+    },
+    strength: {
+      totalVolumeKg: 0,
+      totalPRsCount: 0,
+      recentPRs: [],
+      allPRs: [],
+      progression: []
     },
     milestones: {
       longestDurationMinutes: 0,
@@ -111,7 +123,7 @@ export function getEmptyProgressAnalytics() {
  * @param {Date|string} [referenceDate=new Date()] - Reference date for time-window calculations.
  * @returns {Object} Complete training intelligence metrics.
  */
-export function computeProgressAnalytics(historyRecords = [], profile = null, referenceDate = new Date()) {
+export function computeProgressAnalytics(historyRecords = [], profile = null, referenceDate = new Date(), performanceLogs = null) {
   if (!Array.isArray(historyRecords) || historyRecords.length === 0) {
     const emptyState = getEmptyProgressAnalytics();
     if (profile && profile.goal) {
@@ -392,6 +404,27 @@ export function computeProgressAnalytics(historyRecords = [], profile = null, re
   // 10. REAL MILESTONES
   const milestones = computeSessionMilestones(historyRecords);
 
+  // 11. STRENGTH & PERSONAL RECORDS (Phase 5)
+  const allPerfLogs = Array.isArray(performanceLogs) ? performanceLogs : getPerformanceRecords();
+  let totalVolumeKg = 0;
+  if (allPerfLogs.length > 0) {
+    totalVolumeKg = allPerfLogs.reduce((sum, log) => sum + (Number(log.volumeKg) || 0), 0);
+  } else {
+    totalVolumeKg = historyRecords.reduce((sum, r) => sum + (Number(r.totalVolumeKg) || 0), 0);
+  }
+
+  const allPRs = getAllPersonalRecords(null, allPerfLogs);
+  const recentPRs = [...allPRs]
+    .sort((a, b) => new Date(b.achievedAt || 0).getTime() - new Date(a.achievedAt || 0).getTime())
+    .slice(0, 8);
+
+  const strength = {
+    totalVolumeKg: Math.round(totalVolumeKg * 10) / 10,
+    totalPRsCount: allPRs.length,
+    recentPRs,
+    allPRs
+  };
+
   return {
     hasData: true,
     overview: {
@@ -406,7 +439,9 @@ export function computeProgressAnalytics(historyRecords = [], profile = null, re
       totalTrainingLoad,
       recentTrainingLoad,
       avgDurationMinutes,
-      avgSetsPerWorkout
+      avgSetsPerWorkout,
+      totalVolumeKg: strength.totalVolumeKg,
+      totalPRsCount: strength.totalPRsCount
     },
     frequency: {
       weeklyWorkouts,
@@ -431,6 +466,7 @@ export function computeProgressAnalytics(historyRecords = [], profile = null, re
       topExercises,
       uniqueExercisesCount: exerciseFreqMap.size
     },
+    strength,
     milestones,
     recentActivity
   };

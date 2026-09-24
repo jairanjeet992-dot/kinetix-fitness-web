@@ -29,6 +29,13 @@ import {
   getRoutineItems,
   calculateWorkoutProgress
 } from '../state/workout-session.js';
+import {
+  getExercisePerformanceHistory,
+  detectPersonalRecords,
+  formatWeight,
+  kgToLbs,
+  getPerformanceRecordsForSession
+} from '../analytics/performance-tracker.js';
 
 /**
  * Formats seconds into MM:SS display.
@@ -111,6 +118,34 @@ function startPlayerView(container, workout, routine, initialSession) {
   let timerInterval = null;
   let ticksSinceLastSave = 0;
   let isAdvancing = false;
+  let activeUnit = 'kg';
+  const sessionUnlockedPRs = [];
+
+  function showPRToast(pr, exerciseName) {
+    if (typeof document === 'undefined') return;
+    let toastContainer = document.querySelector('.toast-container');
+    if (!toastContainer) {
+      toastContainer = document.createElement('div');
+      toastContainer.className = 'toast-container';
+      document.body.appendChild(toastContainer);
+    }
+    const toast = document.createElement('div');
+    toast.className = 'toast toast-success';
+    toast.style.borderColor = 'rgba(245, 158, 11, 0.5)';
+    toast.style.background = 'linear-gradient(135deg, var(--color-surface), rgba(245, 158, 11, 0.1))';
+    toast.innerHTML = `
+      <span style="font-size: 20px;">🏆</span>
+      <div class="toast-message">
+        <div style="font-weight: 700; color: #d97706; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">New Personal Record!</div>
+        <div style="font-size: 13px;"><strong>${exerciseName || 'Exercise'}</strong>: ${pr.label} (${pr.formattedValue})</div>
+      </div>
+    `;
+    toastContainer.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      setTimeout(() => toast.remove(), 300);
+    }, 4000);
+  }
 
   function stopTimer() {
     if (timerInterval) {
@@ -212,6 +247,32 @@ function startPlayerView(container, workout, routine, initialSession) {
     const isLastSet = session.currentSet >= currentEx.totalSets;
     const finishLabel = isLastExercise && isLastSet ? 'Finish Workout' : (isLastSet ? 'Complete Exercise' : 'Complete Set');
 
+    // Exercise performance history & session logs for this exercise
+    const exerciseHistory = getExercisePerformanceHistory(currentEx.id);
+    const sessionExerciseLogs = (session.performanceLogs || [])
+      .filter(l => l.exerciseId === currentEx.id)
+      .sort((a, b) => a.setNumber - b.setNumber);
+
+    // Target reps extraction
+    let suggestedReps = '';
+    if (typeof currentEx.targetReps === 'number') {
+      suggestedReps = currentEx.targetReps;
+    } else if (typeof currentEx.targetReps === 'string') {
+      const match = currentEx.targetReps.match(/\b(\d+)\b/);
+      if (match) suggestedReps = match[1];
+    }
+
+    // Suggested weight from previous set in this session
+    let suggestedWeight = '';
+    if (sessionExerciseLogs.length > 0) {
+      const lastLoggedSet = sessionExerciseLogs[sessionExerciseLogs.length - 1];
+      if (lastLoggedSet.weight !== null && lastLoggedSet.weight !== undefined) {
+        suggestedWeight = activeUnit === lastLoggedSet.unit
+          ? lastLoggedSet.weight
+          : (activeUnit === 'lb' ? kgToLbs(lastLoggedSet.weightKg) : lastLoggedSet.weightKg);
+      }
+    }
+
     container.innerHTML = `
       <div class="view-enter" style="max-width: 780px; margin: 0 auto; padding-bottom: var(--space-8);">
         <!-- Top Session Navigation Bar -->
@@ -292,6 +353,84 @@ function startPlayerView(container, workout, routine, initialSession) {
               ${nextEx
                 ? `Next: <strong>${nextEx.name}</strong> (${nextEx.isTimed ? `${nextEx.targetDurationSec}s` : nextEx.targetReps})`
                 : `<strong>Final Exercise!</strong> Complete all sets to finish routine.`}
+            </div>
+
+            <!-- Set Performance & Logging Card (Phase 5) -->
+            <div class="card" style="padding: var(--space-4); background-color: var(--color-surface-secondary); border: 1px solid var(--color-border); border-radius: var(--radius-lg); width: 100%; max-width: 480px; margin-bottom: var(--space-4); text-align: left;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-2); flex-wrap: wrap; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-weight: var(--font-weight-bold); font-size: var(--font-size-body-sm); text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-primary);">
+                    Log Set ${session.currentSet}
+                  </span>
+                  <span class="badge ${session.currentSet === currentEx.totalSets ? 'badge-primary' : 'badge-dark'}" style="font-size: 11px;">
+                    ${session.currentSet} of ${currentEx.totalSets}
+                  </span>
+                </div>
+
+                <!-- Unit Selector -->
+                <div style="display: inline-flex; border-radius: var(--radius-pill); background: var(--color-surface); padding: 2px; border: 1px solid var(--color-border);">
+                  <button type="button" class="btn btn-ghost btn-sm btn-unit-toggle" data-unit="kg" style="padding: 2px 8px; height: 24px; font-size: 11px; border-radius: var(--radius-pill); ${activeUnit === 'kg' ? 'background: var(--color-primary); color: #fff; font-weight: 700;' : ''}">KG</button>
+                  <button type="button" class="btn btn-ghost btn-sm btn-unit-toggle" data-unit="lb" style="padding: 2px 8px; height: 24px; font-size: 11px; border-radius: var(--radius-pill); ${activeUnit === 'lb' ? 'background: var(--color-primary); color: #fff; font-weight: 700;' : ''}">LB</button>
+                </div>
+              </div>
+
+              <!-- Previous Performance / Personal Best Pill -->
+              ${exerciseHistory.hasHistory ? `
+                <div style="display: flex; gap: 6px; margin-bottom: var(--space-3); flex-wrap: wrap; font-size: 11px;">
+                  ${exerciseHistory.personalBests && exerciseHistory.personalBests.heaviest_weight ? `
+                    <span class="badge badge-gold" title="All-Time Heaviest Weight">
+                      PR: ${exerciseHistory.personalBests.heaviest_weight.formattedValue}
+                    </span>
+                  ` : ''}
+                  ${exerciseHistory.previousPerformance ? `
+                    <span class="badge" style="background: rgba(255,255,255,0.08);" title="Last Session Performance">
+                      Last: ${exerciseHistory.previousPerformance.sets.slice(0, 3).map(s => s.weightKg ? `${s.weightKg}kg×${s.reps}` : (s.reps ? `${s.reps}r` : `${s.durationSeconds}s`)).join(', ')}
+                    </span>
+                  ` : ''}
+                </div>
+              ` : ''}
+
+              <!-- Sets Completed This Session -->
+              ${sessionExerciseLogs.length > 0 ? `
+                <div style="margin-bottom: var(--space-3);">
+                  <div style="font-size: 11px; color: var(--color-text-secondary); margin-bottom: 4px; text-transform: uppercase; font-weight: 600;">
+                    Completed This Session:
+                  </div>
+                  <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                    ${sessionExerciseLogs.map(l => `
+                      <span class="badge badge-success" style="font-size: 11px; padding: 3px 8px;">
+                        Set ${l.setNumber}: ${l.weightKg ? `${formatWeight(l.weightKg, activeUnit)} × ${l.reps}` : (l.reps ? `${l.reps} reps` : (l.durationSeconds ? `${l.durationSeconds}s` : 'Done'))} &#10003;
+                      </span>
+                    `).join('')}
+                  </div>
+                </div>
+              ` : ''}
+
+              <!-- Inputs -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3);">
+                <div>
+                  <label for="player-input-weight" style="display: block; font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px; font-weight: 500;">
+                    Weight (${activeUnit.toUpperCase()})
+                  </label>
+                  <input type="number" id="player-input-weight" class="form-input" style="width: 100%; text-align: center; font-weight: 600; font-size: 1.1rem; padding: 8px 4px;" placeholder="Optional" min="0" step="0.5" value="${suggestedWeight}">
+                </div>
+
+                ${currentEx.isTimed ? `
+                  <div>
+                    <label for="player-input-duration" style="display: block; font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px; font-weight: 500;">
+                      Duration (Seconds)
+                    </label>
+                    <input type="number" id="player-input-duration" class="form-input" style="width: 100%; text-align: center; font-weight: 600; font-size: 1.1rem; padding: 8px 4px;" min="1" step="1" value="${currentEx.targetDurationSec || 40}">
+                  </div>
+                ` : `
+                  <div>
+                    <label for="player-input-reps" style="display: block; font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px; font-weight: 500;">
+                      Reps Performed
+                    </label>
+                    <input type="number" id="player-input-reps" class="form-input" style="width: 100%; text-align: center; font-weight: 600; font-size: 1.1rem; padding: 8px 4px;" placeholder="${suggestedReps || 10}" min="1" step="1" value="${suggestedReps}">
+                  </div>
+                `}
+              </div>
             </div>
 
             <!-- Primary Action Bar -->
@@ -426,6 +565,11 @@ function startPlayerView(container, workout, routine, initialSession) {
     const estCalories = workout.estimatedCalories || Math.round((session.elapsedSeconds / 60) * 7.5);
     const completedTimeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+    // Phase 5 Performance Tracking Summary
+    const sessionLogs = getPerformanceRecordsForSession(session.sessionId);
+    const totalVolumeKg = sessionLogs.reduce((acc, log) => acc + (log.volumeKg || 0), 0);
+    const formattedVolume = `${Math.round(totalVolumeKg * 10) / 10} kg`;
+
     container.innerHTML = `
       <div class="view-enter" style="max-width: 640px; margin: 0 auto; padding: var(--space-4) var(--space-4) var(--space-8);">
         <div class="player-summary-card">
@@ -455,10 +599,35 @@ function startPlayerView(container, workout, routine, initialSession) {
               <div class="text-h3" style="margin-top: 2px;">${setsCount} Sets</div>
             </div>
             <div class="card" style="padding: var(--space-3); text-align: center; background-color: var(--color-surface-secondary); border: none;">
-              <span class="text-caption text-muted">CALORIES</span>
-              <div class="text-h3" style="margin-top: 2px;">~${estCalories} kcal</div>
+              <span class="text-caption text-muted">VOLUME LIFTED</span>
+              <div class="text-h3" style="margin-top: 2px; color: ${totalVolumeKg > 0 ? 'var(--color-primary)' : 'inherit'};">
+                ${totalVolumeKg > 0 ? formattedVolume : 'Bodyweight'}
+              </div>
             </div>
           </div>
+
+          <!-- Unlocked Personal Records -->
+          ${sessionUnlockedPRs.length > 0 ? `
+            <div class="card" style="margin-bottom: var(--space-6); padding: var(--space-4); background: linear-gradient(135deg, rgba(234, 179, 8, 0.08), rgba(245, 158, 11, 0.12)); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: var(--radius-lg); text-align: left;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: var(--space-3);">
+                <span style="font-size: 20px;">🏆</span>
+                <span style="font-weight: 700; color: #d97706; text-transform: uppercase; font-size: 13px; letter-spacing: 0.05em;">
+                  Personal Records Broken (${sessionUnlockedPRs.length})
+                </span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                ${sessionUnlockedPRs.map(pr => `
+                  <div style="display: flex; justify-content: space-between; align-items: center; background: var(--color-surface); padding: 8px 12px; border-radius: var(--radius-md); border: 1px solid rgba(245, 158, 11, 0.2);">
+                    <div>
+                      <div style="font-weight: 600; font-size: 14px;">${pr.exerciseName || 'Exercise'}</div>
+                      <div style="font-size: 12px; color: var(--color-text-secondary);">${pr.label}</div>
+                    </div>
+                    <span class="badge badge-gold" style="font-size: 13px;">${pr.formattedValue}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
 
           <div class="text-caption text-muted" style="margin-bottom: var(--space-5);">
             Completed today at ${completedTimeString} &bull; Calorie burn is estimated based on movement intensity
@@ -488,10 +657,73 @@ function startPlayerView(container, workout, routine, initialSession) {
 
   // --- ATTACH EXERCISE CONTROLS ---
   function attachExerciseControls() {
+    const safeIdx = Math.min(Math.max(0, session.currentExerciseIndex || 0), routine.length - 1);
+    const currentEx = routine[safeIdx];
+
+    // Unit toggle buttons
+    const unitToggles = container.querySelectorAll('.btn-unit-toggle');
+    unitToggles.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const u = e.currentTarget.dataset.unit;
+        if (u && (u === 'kg' || u === 'lb') && u !== activeUnit) {
+          activeUnit = u;
+          renderUI();
+        }
+      });
+    });
+
     const completeBtn = container.querySelector('#btn-complete-set');
     if (completeBtn) {
       completeBtn.addEventListener('click', () => {
-        session = completeSet(session, workout);
+        let setLogData = null;
+        const weightEl = container.querySelector('#player-input-weight');
+        const repsEl = container.querySelector('#player-input-reps');
+        const durationEl = container.querySelector('#player-input-duration');
+
+        const rawW = weightEl ? weightEl.value.trim() : '';
+        const rawR = repsEl ? repsEl.value.trim() : '';
+        const rawD = durationEl ? durationEl.value.trim() : '';
+
+        const numWeight = rawW !== '' && Number.isFinite(Number(rawW)) && Number(rawW) > 0 ? Number(rawW) : null;
+        const numReps = rawR !== '' && Number.isFinite(Number(rawR)) && Number(rawR) > 0 ? Math.floor(Number(rawR)) : null;
+        const numDuration = rawD !== '' && Number.isFinite(Number(rawD)) && Number(rawD) > 0
+          ? Math.round(Number(rawD))
+          : (currentEx && currentEx.isTimed ? currentEx.targetDurationSec : null);
+
+        if (numWeight !== null || numReps !== null || (currentEx && currentEx.isTimed && numDuration !== null)) {
+          setLogData = {
+            setNumber: session.currentSet,
+            weight: numWeight,
+            unit: activeUnit,
+            reps: numReps,
+            durationSeconds: numDuration,
+            completed: true,
+            completedAt: new Date().toISOString()
+          };
+
+          // Detect PRs deterministically
+          const candidateRecord = {
+            sessionId: session.sessionId,
+            workoutId: session.workoutId,
+            exerciseId: currentEx.id,
+            setNumber: session.currentSet,
+            weight: numWeight,
+            unit: activeUnit,
+            reps: numReps,
+            durationSeconds: numDuration,
+            completedAt: setLogData.completedAt
+          };
+          const prs = detectPersonalRecords(candidateRecord);
+          if (prs && prs.length > 0) {
+            prs.forEach(pr => {
+              pr.exerciseName = currentEx.name;
+              sessionUnlockedPRs.push(pr);
+            });
+            showPRToast(prs[0], currentEx.name);
+          }
+        }
+
+        session = completeSet(session, workout, setLogData);
         renderUI();
       });
     }

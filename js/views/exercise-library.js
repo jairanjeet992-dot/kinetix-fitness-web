@@ -13,6 +13,7 @@ import {
   MUSCLE_LABELS,
   FOCUS_AREA_TO_MUSCLES
 } from '../data/taxonomy.js';
+import { getExercisePerformanceHistory } from '../analytics/performance-tracker.js';
 
 export function renderExerciseLibrary(container) {
   let activeMuscle = 'All';
@@ -164,6 +165,8 @@ export function renderExerciseLibrary(container) {
       ? ex.instructions.map((step, idx) => `<li style="margin-bottom: 6px;">${step}</li>`).join('')
       : `<li>${ex.instructions}</li>`;
 
+    const perfHistory = getExercisePerformanceHistory(ex.id);
+
     const modalHtml = `
       <div class="modal-backdrop is-active" id="exercise-detail-modal" role="dialog" aria-modal="true" aria-labelledby="modal-ex-title">
         <div class="modal-card view-enter" style="max-width: 540px; max-height: 90vh; overflow-y: auto;">
@@ -220,11 +223,50 @@ export function renderExerciseLibrary(container) {
           </div>
 
           <!-- Form & Biomechanical Instructions -->
-          <div style="margin-bottom: var(--space-5);">
+          <div style="margin-bottom: var(--space-4);">
             <div class="text-label" style="margin-bottom: 6px;">Coaching & Technique Cues:</div>
             <ol class="text-body-sm" style="padding-left: 20px; line-height: 1.5; color: var(--color-text-secondary);">
               ${instructionsList}
             </ol>
+          </div>
+
+          <!-- Personal Records & Training History (Phase 5) -->
+          <div style="margin-bottom: var(--space-5); padding: var(--space-3); background: var(--color-surface-secondary); border-radius: var(--radius-md); border: 1px solid var(--color-border);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span class="text-label" style="display: flex; align-items: center; gap: 6px;">
+                <span>🏆</span> Personal Records & History
+              </span>
+              <span class="badge ${perfHistory.hasHistory ? 'badge-primary' : 'badge-secondary'}">
+                ${perfHistory.hasHistory ? `${perfHistory.totalSetsLogged} sets logged` : 'No logs yet'}
+              </span>
+            </div>
+
+            ${perfHistory.hasHistory ? `
+              <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px;">
+                ${perfHistory.personalBests.heaviest_weight ? `
+                  <span class="badge badge-gold">Max: ${perfHistory.personalBests.heaviest_weight.formattedValue}</span>
+                ` : ''}
+                ${perfHistory.personalBests.estimated_1rm ? `
+                  <span class="badge badge-gold">Est 1RM: ${perfHistory.personalBests.estimated_1rm.formattedValue}</span>
+                ` : ''}
+                ${perfHistory.personalBests.best_reps ? `
+                  <span class="badge badge-gold">${perfHistory.personalBests.best_reps.formattedValue}</span>
+                ` : ''}
+                ${perfHistory.personalBests.longest_duration ? `
+                  <span class="badge badge-gold">Best Time: ${perfHistory.personalBests.longest_duration.formattedValue}</span>
+                ` : ''}
+              </div>
+
+              ${perfHistory.previousPerformance ? `
+                <div style="font-size: 12px; color: var(--color-text-secondary);">
+                  <strong>Last Session:</strong> ${perfHistory.previousPerformance.sets.map(s => s.weightKg ? `${s.weightKg}kg×${s.reps}` : (s.reps ? `${s.reps}r` : `${s.durationSeconds}s`)).join(', ')}
+                </div>
+              ` : ''}
+            ` : `
+              <p class="text-caption text-muted" style="margin: 0;">
+                Log weights and reps during a workout to track personal bests and volume progression for this movement.
+              </p>
+            `}
           </div>
 
           <div style="text-align: right;">

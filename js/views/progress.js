@@ -16,6 +16,7 @@ import { getWorkoutHistory } from '../state/workout-session.js';
 import { getProfile } from '../state/profile.js';
 import { computeProgressAnalytics } from '../analytics/progress-engine.js';
 import { GOALS } from '../data/taxonomy.js';
+import { EXERCISES } from '../data/exercises.js';
 
 const GOAL_DISPLAY_LABELS = {
   [GOALS.BUILD_MUSCLE]: 'Build Muscle',
@@ -135,7 +136,7 @@ function renderEmptyState(container, profile) {
  * Renders active progress dashboard when workout history exists.
  */
 function renderPopulatedState(container, analytics, profile) {
-  const { overview, frequency, goals, muscles, exercises, milestones, recentActivity } = analytics;
+  const { overview, frequency, goals, muscles, exercises, milestones, recentActivity, strength } = analytics;
 
   // Max minutes for weekly chart scaling (minimum 30m)
   const maxWeeklyMinutes = Math.max(30, ...frequency.weeklyVolumeTrend.map(d => d.minutes));
@@ -161,8 +162,8 @@ function renderPopulatedState(container, analytics, profile) {
         ${streakBadge}
       </div>
 
-      <!-- 4-Up High Level Overview Cards -->
-      <div class="grid grid-cols-2 grid-tablet-4 gap-3" style="margin-bottom: var(--space-6);">
+      <!-- High Level Overview Cards -->
+      <div class="grid grid-cols-2 grid-tablet-3 gap-3" style="margin-bottom: var(--space-6);">
         <div class="card" style="padding: var(--space-4); text-align: center;">
           <span class="text-caption text-muted">TOTAL SESSIONS</span>
           <div class="text-h1" style="color: var(--color-primary); margin-top: 4px;">
@@ -194,7 +195,58 @@ function renderPopulatedState(container, analytics, profile) {
           </div>
           <span class="text-caption text-secondary">7-day stimulus (Total: ${overview.totalTrainingLoad})</span>
         </div>
+
+        <div class="card" style="padding: var(--space-4); text-align: center;">
+          <span class="text-caption text-muted">VOLUME LIFTED</span>
+          <div class="text-h1" style="color: var(--color-primary); margin-top: 4px;">
+            ${overview.totalVolumeKg ? `${overview.totalVolumeKg.toLocaleString()} kg` : '0 kg'}
+          </div>
+          <span class="text-caption text-secondary">Total workload lifted</span>
+        </div>
+
+        <div class="card" style="padding: var(--space-4); text-align: center;">
+          <span class="text-caption text-muted">PERSONAL RECORDS</span>
+          <div class="text-h1" style="color: #d97706; margin-top: 4px;">
+            ${overview.totalPRsCount || 0}
+          </div>
+          <span class="text-caption text-secondary">All-time milestones</span>
+        </div>
       </div>
+
+      <!-- Personal Records (PRs) Section (Phase 5) -->
+      ${strength && strength.allPRs && strength.allPRs.length > 0 ? `
+        <section class="card" style="margin-bottom: var(--space-6); background: linear-gradient(135deg, var(--color-surface), rgba(245, 158, 11, 0.05)); border: 1px solid rgba(245, 158, 11, 0.25);">
+          <div class="section-header" style="margin-bottom: var(--space-3);">
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 20px;">🏆</span>
+                <h2 class="text-h2">Personal Records</h2>
+              </div>
+              <p class="section-subtitle">Verified maximum loads, best reps, and performance milestones</p>
+            </div>
+            <span class="badge badge-gold">${strength.totalPRsCount} Records</span>
+          </div>
+
+          <div class="grid grid-cols-1 grid-tablet-2 gap-3">
+            ${strength.recentPRs.map(pr => {
+              const ex = EXERCISES ? EXERCISES.find(e => e.id === pr.exerciseId) : null;
+              const exName = ex ? ex.name : (pr.exerciseName || pr.exerciseId);
+              return `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-3); background: var(--color-surface-secondary); border-radius: var(--radius-md); border: 1px solid var(--color-border-subtle);">
+                  <div>
+                    <div style="font-weight: 600; color: var(--color-text-primary);">${exName}</div>
+                    <div style="font-size: 12px; color: var(--color-text-secondary);">${pr.label}</div>
+                  </div>
+                  <div style="text-align: right;">
+                    <span class="badge badge-gold" style="font-size: 13px;">${pr.formattedValue}</span>
+                    <div style="font-size: 10px; color: var(--color-text-muted); margin-top: 2px;">${formatDate(pr.achievedAt)}</div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </section>
+      ` : ''}
 
       <!-- Weekly Activity Visualization (Last 7 Days Bar Chart) -->
       <section class="card" style="margin-bottom: var(--space-6);">
