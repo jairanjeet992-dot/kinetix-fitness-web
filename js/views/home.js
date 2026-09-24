@@ -318,7 +318,8 @@ export function renderHome(container) {
                 </div>
               </div>
             </article>
-          `).join('')}
+          `;
+          }).join('')}
         </div>
       </section>
     </div>
