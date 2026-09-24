@@ -71,9 +71,25 @@ export function validateExerciseRecord(exercise) {
   if (!Array.isArray(exercise.equipment) || exercise.equipment.length === 0) {
     errors.push(`[${exercise.id}] equipment must be a non-empty array`);
   } else {
-    exercise.equipment.forEach(eq => {
-      if (!ALL_CANONICAL_EQUIPMENT.includes(eq)) {
-        errors.push(`[${exercise.id}] Unknown equipment "${eq}". Canonical: ${ALL_CANONICAL_EQUIPMENT.join(', ')}`);
+    exercise.equipment.forEach(req => {
+      if (typeof req === 'string') {
+        if (!ALL_CANONICAL_EQUIPMENT.includes(req)) {
+          errors.push(`[${exercise.id}] Unknown equipment "${req}". Canonical: ${ALL_CANONICAL_EQUIPMENT.join(', ')}`);
+        }
+      } else if (req && Array.isArray(req.any) && req.any.length > 0) {
+        req.any.forEach(eq => {
+          if (!ALL_CANONICAL_EQUIPMENT.includes(eq)) {
+            errors.push(`[${exercise.id}] Unknown ANY equipment "${eq}". Canonical: ${ALL_CANONICAL_EQUIPMENT.join(', ')}`);
+          }
+        });
+      } else if (req && Array.isArray(req.all) && req.all.length > 0) {
+        req.all.forEach(eq => {
+          if (!ALL_CANONICAL_EQUIPMENT.includes(eq)) {
+            errors.push(`[${exercise.id}] Unknown ALL equipment "${eq}". Canonical: ${ALL_CANONICAL_EQUIPMENT.join(', ')}`);
+          }
+        });
+      } else {
+        errors.push(`[${exercise.id}] Invalid equipment requirement format`);
       }
     });
   }
@@ -103,10 +119,10 @@ export function validateExerciseRecord(exercise) {
 /**
  * Validates an entire exercise library.
  * Checks for uniqueness and individual schema integrity.
- * @param {Array<Object>} exerciseList
+ * @param {Array<Object>} [exerciseList=[]]
  * @returns {{ valid: boolean, totalExercises: number, errors: string[], warnings: string[] }}
  */
-export function validateExerciseDatabase(exerciseList) {
+export function validateExerciseDatabase(exerciseList = []) {
   const errors = [];
   const warnings = [];
   const seenIds = new Set();
@@ -121,15 +137,19 @@ export function validateExerciseDatabase(exerciseList) {
     };
   }
 
-  exerciseList.forEach(ex => {
+  exerciseList.forEach((ex, index) => {
     // Record schema validation
     const recordErrors = validateExerciseRecord(ex);
     if (recordErrors.length > 0) {
       errors.push(...recordErrors);
     }
 
+    if (!ex || typeof ex !== 'object') {
+      return;
+    }
+
     // Uniqueness checks
-    if (ex.id) {
+    if (typeof ex.id === 'string' && ex.id.trim()) {
       if (seenIds.has(ex.id)) {
         errors.push(`Duplicate exercise ID detected: "${ex.id}"`);
       } else {
@@ -137,7 +157,7 @@ export function validateExerciseDatabase(exerciseList) {
       }
     }
 
-    if (ex.name) {
+    if (typeof ex.name === 'string' && ex.name.trim()) {
       const normalizedName = ex.name.trim().toLowerCase();
       if (seenNames.has(normalizedName)) {
         warnings.push(`Duplicate exercise name detected: "${ex.name}"`);

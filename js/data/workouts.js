@@ -146,6 +146,37 @@ export const WORKOUTS = [
 
 // Cache for dynamically generated workouts
 const generatedWorkoutsMap = new Map();
+const STORAGE_KEY = 'kinetix_generated_workouts';
+
+function loadPersistedWorkouts() {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        parsed.forEach(w => generatedWorkoutsMap.set(w.id, w));
+      }
+    }
+  } catch (err) {
+    console.warn("Failed to load persisted generated workouts.", err);
+  }
+}
+
+function persistWorkouts() {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    const workoutsArray = Array.from(generatedWorkoutsMap.values());
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(workoutsArray));
+  } catch (err) {
+    console.warn("Failed to save generated workouts to storage.", err);
+  }
+}
+
+// Load on initialization
+if (typeof localStorage !== 'undefined') {
+  loadPersistedWorkouts();
+}
 
 /**
  * Registers a dynamically generated workout so it can be retrieved by ID across views.
@@ -155,6 +186,7 @@ export function registerGeneratedWorkout(workout) {
     generatedWorkoutsMap.set(workout.id, workout);
     // Also save as latest active generated session
     generatedWorkoutsMap.set('latest-generated', workout);
+    persistWorkouts();
   }
 }
 

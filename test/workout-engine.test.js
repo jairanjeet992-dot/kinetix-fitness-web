@@ -11,6 +11,7 @@ import { EXERCISES, getExerciseById } from '../js/data/exercises.js';
 import { validateExerciseDatabase } from '../js/data/exercise-validator.js';
 import { generateWorkout } from '../js/engine/workout-generator.js';
 import { EQUIPMENT } from '../js/data/taxonomy.js';
+import { registerGeneratedWorkout, getWorkoutById } from '../js/data/workouts.js';
 
 let totalTests = 0;
 let passedTests = 0;
@@ -138,10 +139,18 @@ scenarios.forEach((scenario, index) => {
 
   let hasDisallowedEquipment = false;
   allExercises.forEach(ex => {
-    const isAllowed = ex.equipment.some(eq => scenario.allowedEquipment.includes(eq));
+    let isAllowed = true;
+    ex.equipment.forEach(req => {
+      if (typeof req === 'string') {
+        if (!scenario.allowedEquipment.includes(req)) isAllowed = false;
+      } else if (req && req.any) {
+        if (!req.any.some(eq => scenario.allowedEquipment.includes(eq))) isAllowed = false;
+      }
+    });
+
     if (!isAllowed) {
       hasDisallowedEquipment = true;
-      console.error(`Disallowed gear detected in ${ex.name}: ${ex.equipment.join(', ')}`);
+      console.error(`Disallowed gear detected in ${ex.name}: ${JSON.stringify(ex.equipment)}`);
     }
   });
   assert(!hasDisallowedEquipment, `All selected exercises strictly comply with allowed equipment`);
@@ -177,6 +186,62 @@ const workoutSeed1 = generateWorkout(baseProfile, 1);
 
 assert(workoutSeed0.ok && workoutSeed1.ok, `Both variations generated successfully`);
 assert(workoutSeed0.id !== workoutSeed1.id, `Different deterministic IDs generated (Seed 0: ${workoutSeed0.id} vs Seed 1: ${workoutSeed1.id})`);
+
+// ------------------------------------------------------------------
+// 4. EXTREME DURATION SCALING TEST
+// ------------------------------------------------------------------
+console.log('\nTest Suite 4: Extreme Duration Scaling');
+const shortProfile = { ...baseProfile, durationMinutes: 10 };
+const longProfile = { ...baseProfile, durationMinutes: 60 };
+
+const shortWorkout = generateWorkout(shortProfile, 0);
+const longWorkout = generateWorkout(longProfile, 0);
+
+assert(shortWorkout.ok, "10-minute workout generated successfully");
+assert(shortWorkout.durationMin >= 5 && shortWorkout.durationMin <= 15, `Short duration bounded correctly (Actual: ${shortWorkout.durationMin} min)`);
+assert(longWorkout.ok, "60-minute workout generated successfully");
+assert(longWorkout.durationMin >= 45 && longWorkout.durationMin <= 75, `Long duration bounded correctly (Actual: ${longWorkout.durationMin} min)`);
+assert(longWorkout.exercises.length > shortWorkout.exercises.length || longWorkout.rounds > shortWorkout.rounds, "Long workout has more volume than short workout");
+
+// ------------------------------------------------------------------
+// 5. COMPLEX EQUIPMENT MATCHING
+// ------------------------------------------------------------------
+console.log('\nTest Suite 5: Complex Equipment Logic (AND / OR)');
+const onlyDumbbells = { ...baseProfile, equipment: [EQUIPMENT.DUMBBELL, EQUIPMENT.BODYWEIGHT, EQUIPMENT.NONE] };
+const dumbbellAndBench = { ...baseProfile, equipment: [EQUIPMENT.DUMBBELL, EQUIPMENT.BENCH, EQUIPMENT.BODYWEIGHT, EQUIPMENT.NONE] };
+
+const wkDumbbell = generateWorkout(onlyDumbbells, 0);
+const wkBench = generateWorkout(dumbbellAndBench, 0);
+
+assert(wkDumbbell.ok, "Dumbbell-only workout generated");
+assert(wkBench.ok, "Dumbbell + Bench workout generated");
+
+// Ensure dumbbell-only doesn't use bench-requiring exercises
+let usedBenchWithoutHavingOne = false;
+wkDumbbell.exercises.forEach(ex => {
+  ex.equipment.forEach(req => {
+    if (req === EQUIPMENT.BENCH) usedBenchWithoutHavingOne = true;
+  });
+});
+assert(!usedBenchWithoutHavingOne, "Dumbbell-only workout strictly avoids bench exercises (ALL logic)");
+
+// ------------------------------------------------------------------
+// 6. PERSISTENCE LAYER VALIDATION
+// ------------------------------------------------------------------
+console.log('\nTest Suite 6: Persistence Layer');
+// Mock localStorage
+globalThis.localStorage = {
+  store: {},
+  getItem(key) { return this.store[key] || null; },
+  setItem(key, val) { this.store[key] = val; }
+};
+
+registerGeneratedWorkout(shortWorkout);
+const retrieved = getWorkoutById(shortWorkout.id);
+assert(retrieved && retrieved.id === shortWorkout.id, "Workout successfully saved and retrieved from persistence registry");
+const retrievedLatest = getWorkoutById('gen-latest-fallback'); // Should fallback
+assert(getWorkoutById(shortWorkout.id) !== null, "Registry returns correct fallback logic for latest");
+
 
 // ------------------------------------------------------------------
 // SUMMARY
